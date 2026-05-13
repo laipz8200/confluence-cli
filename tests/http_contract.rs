@@ -140,3 +140,32 @@ async fn status_mapping_returns_stable_error_code() {
 
     assert_eq!(error.code.as_str(), "auth_failed");
 }
+
+#[tokio::test]
+async fn update_page_conflict_returns_actionable_retryable_error() {
+    let server = MockServer::start().await;
+    Mock::given(method("PUT"))
+        .and(path("/api/v2/pages/456"))
+        .respond_with(ResponseTemplate::new(409).set_body_string("conflict token-value"))
+        .mount(&server)
+        .await;
+
+    let client = ConfluenceClient::new(config(&server.uri())).unwrap();
+    let error = client
+        .update_page(UpdatePageRequest {
+            page_id: "456".to_string(),
+            title: "Updated Page".to_string(),
+            next_version: 8,
+            storage_html: "<h1>Updated Page</h1>\n".to_string(),
+        })
+        .await
+        .unwrap_err();
+
+    assert_eq!(error.code.as_str(), "confluence_version_conflict");
+    assert_eq!(
+        error.message,
+        "Page was updated by someone else. Fetch the latest version and retry."
+    );
+    assert!(error.retryable);
+    assert_eq!(error.details["response_body"], "conflict [redacted]");
+}

@@ -263,11 +263,18 @@ impl ConfluenceClient {
             status if status.is_client_error() => ErrorCode::ConfluenceValidationFailed,
             _ => ErrorCode::NetworkError,
         };
+        let message = if code == ErrorCode::ConfluenceVersionConflict {
+            "Page was updated by someone else. Fetch the latest version and retry.".to_string()
+        } else {
+            format!("Confluence returned HTTP {status}.")
+        };
 
-        AppError::new(code, format!("Confluence returned HTTP {status}."))
+        AppError::new(code, message)
             .with_retryable(matches!(
                 code,
-                ErrorCode::NetworkError | ErrorCode::RateLimited
+                ErrorCode::ConfluenceVersionConflict
+                    | ErrorCode::NetworkError
+                    | ErrorCode::RateLimited
             ))
             .with_details(json!({
                 "status": status.as_u16(),

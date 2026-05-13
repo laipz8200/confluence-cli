@@ -1,5 +1,4 @@
 use assert_cmd::Command;
-use predicates::prelude::*;
 use serde_json::json;
 use serde_json::Value;
 use std::path::Path;
@@ -241,7 +240,7 @@ async fn page_update_conflict_returns_stable_error() {
         .await;
     Mock::given(method("PUT"))
         .and(path("/api/v2/pages/456"))
-        .respond_with(ResponseTemplate::new(409))
+        .respond_with(ResponseTemplate::new(409).set_body_string("conflict token-value"))
         .expect(1)
         .mount(&server)
         .await;
@@ -251,7 +250,8 @@ async fn page_update_conflict_returns_stable_error() {
     std::fs::write(&body_file, "# Updated Page\n\nBody").unwrap();
 
     let mut cmd = Command::cargo_bin("confluence-cli").unwrap();
-    cmd.env("CONFLUENCE_CLI_CONFIG", dir.path().join("config.toml"))
+    let output = cmd
+        .env("CONFLUENCE_CLI_CONFIG", dir.path().join("config.toml"))
         .args([
             "page",
             "update",
@@ -265,7 +265,19 @@ async fn page_update_conflict_returns_stable_error() {
         .args(["--execute"])
         .assert()
         .failure()
-        .stdout(predicate::str::contains(
-            r#""code": "confluence_version_conflict""#,
-        ));
+        .get_output()
+        .stdout
+        .clone();
+    let stdout_text = String::from_utf8(output.clone()).unwrap();
+    let stdout: Value = serde_json::from_slice(&output).unwrap();
+
+    assert_eq!(stdout["ok"], false);
+    assert_eq!(stdout["command"], "page.update");
+    assert_eq!(stdout["error"]["code"], "confluence_version_conflict");
+    assert_eq!(
+        stdout["error"]["message"],
+        "Page was updated by someone else. Fetch the latest version and retry."
+    );
+    assert_eq!(stdout["error"]["retryable"], true);
+    assert!(!stdout_text.contains("token-value"));
 }
