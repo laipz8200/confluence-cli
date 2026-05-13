@@ -49,11 +49,11 @@ confluence-cli page update --page-id 123456 --title "Updated Page" --body-file p
 confluence-cli page update --page-id 123456 --title "Updated Page" --body-file page.md --execute
 ```
 
-All commands print JSON. Write commands are dry-run by default. A real create or update only happens when `--execute` is present.
+Successful operational subcommands print JSON, and app-level validation or API errors print JSON envelopes. `--help`, `--version`, and clap argument parse errors may print normal CLI text. Write commands are dry-run by default. A real create or update only happens when `--execute` is present.
 
 ## Agent Safety
 
-Agents should run write commands without `--execute` first, inspect the returned JSON, and ask the user before executing the write. Updates require `--page-id`; the CLI does not update pages by title.
+Agents should run write commands without `--execute` first, inspect the returned dry-run JSON, show or summarize it to the user, and ask for explicit approval before executing the write. Updates require `--page-id`; the CLI does not update pages by title.
 
 ## Skills Package
 
