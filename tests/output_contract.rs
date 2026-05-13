@@ -46,17 +46,38 @@ fn error_envelope_has_stable_shape() {
 
 #[test]
 fn token_like_details_are_redacted() {
-    let error = AppError::new(ErrorCode::AuthFailed, "Authentication failed.")
-        .with_details(json!({
+    let error =
+        AppError::new(ErrorCode::AuthFailed, "Authentication failed.").with_details(json!({
             "Authorization": "Basic abc123",
-            "api_token": "secret",
-            "nested": {"token": "secret"}
+            "api_token": "api-token-secret",
+            "access_token": "access-secret",
+            "refresh_token": "refresh-secret",
+            "bearer_token": "bearer-secret",
+            "apiToken": "camel-secret",
+            "secret": "secret-value",
+            "nested": {
+                "token": "nested-secret",
+                "items": [
+                    {"Authorization": "Bearer array-secret"},
+                    {"apiToken": "array-camel-secret"},
+                    {"safe": "visible"}
+                ]
+            }
         }));
 
     let value = error_json("space.list", &error);
     let text = serde_json::to_string(&value).unwrap();
 
     assert!(!text.contains("abc123"));
-    assert!(!text.contains("secret"));
+    assert!(!text.contains("api-token-secret"));
+    assert!(!text.contains("access-secret"));
+    assert!(!text.contains("refresh-secret"));
+    assert!(!text.contains("bearer-secret"));
+    assert!(!text.contains("camel-secret"));
+    assert!(!text.contains("secret-value"));
+    assert!(!text.contains("nested-secret"));
+    assert!(!text.contains("array-secret"));
+    assert!(!text.contains("array-camel-secret"));
+    assert!(text.contains("visible"));
     assert!(text.contains("[redacted]"));
 }

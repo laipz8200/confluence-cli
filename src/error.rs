@@ -98,10 +98,7 @@ pub fn redact_value(value: Value) -> Value {
             map.into_iter()
                 .map(|(key, value)| {
                     let lower = key.to_ascii_lowercase();
-                    if lower.contains("authorization")
-                        || lower.contains("api_token")
-                        || lower == "token"
-                    {
+                    if is_sensitive_key(&lower) {
                         (key, Value::String("[redacted]".to_string()))
                     } else {
                         (key, redact_value(value))
@@ -112,4 +109,16 @@ pub fn redact_value(value: Value) -> Value {
         Value::Array(items) => Value::Array(items.into_iter().map(redact_value).collect()),
         other => other,
     }
+}
+
+fn is_sensitive_key(lowercase_key: &str) -> bool {
+    let normalized = lowercase_key.replace('_', "");
+
+    lowercase_key.contains("authorization")
+        || lowercase_key.contains("secret")
+        || normalized.contains("apitoken")
+        || normalized.contains("accesstoken")
+        || normalized.contains("refreshtoken")
+        || normalized.contains("bearertoken")
+        || lowercase_key == "token"
 }
