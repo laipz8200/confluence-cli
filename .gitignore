@@ -1,1 +1,4 @@
 /.worktrees
+/target/
+/.confluence-cli.toml
+*.log

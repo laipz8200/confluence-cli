@@ -1,0 +1,28 @@
+[package]
+name = "confluence-cli"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Agent-friendly CLI for Confluence Cloud"
+repository = "https://github.com/laipz8200/confluence-cli"
+
+[dependencies]
+base64 = "0.22"
+clap = { version = "4", features = ["derive"] }
+html-escape = "0.2"
+pulldown-cmark = "0.12"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+rpassword = "7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+toml = "0.8"
+url = "2"
+
+[dev-dependencies]
+assert_cmd = "2"
+predicates = "3"
+pretty_assertions = "1"
+tempfile = "3"
+wiremock = "0.6"
