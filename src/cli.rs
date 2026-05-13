@@ -106,33 +106,35 @@ async fn dispatch(
         } => crate::commands::config::init()
             .map(|data| ("config.init", false, data))
             .map_err(|error| ("config.init", error)),
-        Commands::Space { .. } => Err((
-            "space.list",
-            AppError::new(
-                ErrorCode::InternalError,
-                "space list is unavailable in this incremental build.",
-            ),
-        )),
-        Commands::Search { .. } => Err((
-            "search",
-            AppError::new(
-                ErrorCode::InternalError,
-                "search is unavailable in this incremental build.",
-            ),
-        )),
-        Commands::Page { command } => {
-            let name = match command {
-                PageCommand::Get { .. } => "page.get",
-                PageCommand::Create { .. } => "page.create",
-                PageCommand::Update { .. } => "page.update",
-            };
-            Err((
-                name,
+        Commands::Space {
+            command: SpaceCommand::List,
+        } => crate::commands::space::list()
+            .await
+            .map(|data| ("space.list", false, data))
+            .map_err(|error| ("space.list", error)),
+        Commands::Search { query, cql } => crate::commands::search::run(query, cql)
+            .await
+            .map(|data| ("search", false, data))
+            .map_err(|error| ("search", error)),
+        Commands::Page { command } => match command {
+            PageCommand::Get { page_id } => crate::commands::page::get(&page_id)
+                .await
+                .map(|data| ("page.get", false, data))
+                .map_err(|error| ("page.get", error)),
+            PageCommand::Create { .. } => Err((
+                "page.create",
                 AppError::new(
                     ErrorCode::InternalError,
-                    format!("{name} is unavailable in this incremental build."),
+                    "page.create is unavailable in this incremental build.",
                 ),
-            ))
-        }
+            )),
+            PageCommand::Update { .. } => Err((
+                "page.update",
+                AppError::new(
+                    ErrorCode::InternalError,
+                    "page.update is unavailable in this incremental build.",
+                ),
+            )),
+        },
     }
 }
