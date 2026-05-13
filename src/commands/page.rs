@@ -67,12 +67,54 @@ pub async fn create(
 }
 
 pub async fn update(
-    _request: UpdatePageRequest,
-    _body_file: &Path,
-    _execute: bool,
+    page_id: &str,
+    title: &str,
+    body_file: &Path,
+    execute: bool,
 ) -> Result<(bool, Value), AppError> {
-    Err(AppError::new(
-        ErrorCode::InternalError,
-        "page.update is unavailable in this incremental build.",
-    ))
+    let config = load_default_config()?;
+    let client = ConfluenceClient::new(config)?;
+    let markdown = std::fs::read_to_string(body_file).map_err(|source| {
+        AppError::new(
+            ErrorCode::MarkdownConversionFailed,
+            format!("Failed to read body file: {source}"),
+        )
+    })?;
+    let converted = markdown_to_storage(&markdown)?;
+    let page = client.get_page(page_id).await?;
+    let current_version = page.version.map(|version| version.number).ok_or_else(|| {
+        AppError::new(
+            ErrorCode::ConfluenceValidationFailed,
+            "Confluence page response did not include a version number.",
+        )
+    })?;
+    let next_version = current_version + 1;
+
+    if !execute {
+        return Ok((
+            true,
+            create_dry_run(
+                "PUT",
+                format!("/api/v2/pages/{page_id}"),
+                WriteTarget::Update {
+                    page_id: page_id.to_string(),
+                    current_version,
+                    next_version,
+                },
+                title,
+                &converted,
+            ),
+        ));
+    }
+
+    let response = client
+        .update_page(UpdatePageRequest {
+            page_id: page_id.to_string(),
+            title: title.to_string(),
+            next_version,
+            storage_html: converted.storage_html,
+        })
+        .await?;
+
+    Ok((false, response))
 }
