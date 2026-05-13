@@ -17,6 +17,6 @@ pub fn auth_header_name() -> reqwest::header::HeaderName {
     AUTHORIZATION
 }
 
-pub fn redacted_token(api_token: &str) -> String {
-    format!("[redacted:{}]", api_token.len())
+pub fn redacted_token(_api_token: &str) -> String {
+    "[redacted]".to_string()
 }

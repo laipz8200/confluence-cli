@@ -1,5 +1,7 @@
 use crate::error::{AppError, ErrorCode};
 use serde::{Deserialize, Serialize};
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -97,14 +99,47 @@ pub fn save_config(path: &Path, config: &Config) -> Result<(), AppError> {
             format!("Failed to serialize config TOML: {source}"),
         )
     })?;
-    std::fs::write(path, text).map_err(|source| {
+    let mut file = writable_config_file(path).map_err(|source| {
+        AppError::new(
+            ErrorCode::ConfigInvalid,
+            format!("Failed to open config at {}: {source}", path.display()),
+        )
+    })?;
+    file.write_all(text.as_bytes()).map_err(|source| {
         AppError::new(
             ErrorCode::ConfigInvalid,
             format!("Failed to write config at {}: {source}", path.display()),
         )
     })?;
+    file.set_len(text.len() as u64).map_err(|source| {
+        AppError::new(
+            ErrorCode::ConfigInvalid,
+            format!("Failed to truncate config at {}: {source}", path.display()),
+        )
+    })?;
     set_owner_only_permissions(path)?;
     Ok(())
+}
+
+#[cfg(unix)]
+fn writable_config_file(path: &Path) -> std::io::Result<std::fs::File> {
+    use std::os::unix::fs::OpenOptionsExt;
+
+    OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .mode(0o600)
+        .open(path)
+}
+
+#[cfg(not(unix))]
+fn writable_config_file(path: &Path) -> std::io::Result<std::fs::File> {
+    OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(path)
 }
 
 #[cfg(unix)]
