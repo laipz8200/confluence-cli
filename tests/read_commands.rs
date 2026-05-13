@@ -1,6 +1,7 @@
 use assert_cmd::Command;
 use predicates::prelude::*;
 use serde_json::json;
+use serde_json::Value;
 use std::path::Path;
 use tempfile::TempDir;
 use wiremock::matchers::{method, path, query_param};
@@ -36,13 +37,19 @@ async fn space_list_prints_json() {
     write_config(dir.path(), &server.uri());
 
     let mut cmd = Command::cargo_bin("confluence-cli").unwrap();
-    cmd.env("CONFLUENCE_CLI_CONFIG", dir.path().join("config.toml"))
+    let output = cmd
+        .env("CONFLUENCE_CLI_CONFIG", dir.path().join("config.toml"))
         .args(["space", "list"])
         .assert()
         .success()
-        .stdout(predicate::str::contains(r#""ok": true"#))
-        .stdout(predicate::str::contains(r#""command": "space.list""#))
-        .stdout(predicate::str::contains(r#""key": "ENG""#));
+        .get_output()
+        .stdout
+        .clone();
+    let stdout: Value = serde_json::from_slice(&output).unwrap();
+
+    assert_eq!(stdout["ok"], true);
+    assert_eq!(stdout["command"], "space.list");
+    assert_eq!(stdout["data"]["spaces"][0]["key"], "ENG");
 }
 
 #[tokio::test]
@@ -67,6 +74,27 @@ async fn search_query_builds_cql() {
         .success()
         .stdout(predicate::str::contains(r#""command": "search""#))
         .stdout(predicate::str::contains("Deploy Guide"));
+}
+
+#[test]
+fn search_query_and_cql_returns_json_validation_error() {
+    let dir = TempDir::new().unwrap();
+    write_config(dir.path(), "http://127.0.0.1:9");
+
+    let mut cmd = Command::cargo_bin("confluence-cli").unwrap();
+    let output = cmd
+        .env("CONFLUENCE_CLI_CONFIG", dir.path().join("config.toml"))
+        .args(["search", "--query", "deploy", "--cql", r#"text ~ "deploy""#])
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+    let stdout: Value = serde_json::from_slice(&output).unwrap();
+
+    assert_eq!(stdout["ok"], false);
+    assert_eq!(stdout["command"], "search");
+    assert_eq!(stdout["error"]["code"], "confluence_validation_failed");
 }
 
 #[tokio::test]

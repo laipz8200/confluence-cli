@@ -22,9 +22,9 @@ pub enum Commands {
         command: SpaceCommand,
     },
     Search {
-        #[arg(long, conflicts_with = "cql")]
+        #[arg(long)]
         query: Option<String>,
-        #[arg(long, conflicts_with = "query")]
+        #[arg(long)]
         cql: Option<String>,
     },
     Page {
