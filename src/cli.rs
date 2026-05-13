@@ -1,4 +1,5 @@
-use crate::error::{AppError, ErrorCode};
+use crate::client::UpdatePageRequest;
+use crate::error::AppError;
 use crate::output::{error_json, print_json, success_json};
 use clap::{Parser, Subcommand};
 
@@ -121,20 +122,34 @@ async fn dispatch(
                 .await
                 .map(|data| ("page.get", false, data))
                 .map_err(|error| ("page.get", error)),
-            PageCommand::Create { .. } => Err((
-                "page.create",
-                AppError::new(
-                    ErrorCode::InternalError,
-                    "page.create is unavailable in this incremental build.",
-                ),
-            )),
-            PageCommand::Update { .. } => Err((
-                "page.update",
-                AppError::new(
-                    ErrorCode::InternalError,
-                    "page.update is unavailable in this incremental build.",
-                ),
-            )),
+            PageCommand::Create {
+                space_key,
+                title,
+                body_file,
+                parent_id,
+                execute,
+            } => crate::commands::page::create(&space_key, &title, &body_file, parent_id, execute)
+                .await
+                .map(|(dry_run, data)| ("page.create", dry_run, data))
+                .map_err(|error| ("page.create", error)),
+            PageCommand::Update {
+                page_id,
+                title,
+                body_file,
+                execute,
+            } => crate::commands::page::update(
+                UpdatePageRequest {
+                    page_id,
+                    title,
+                    next_version: 0,
+                    storage_html: String::new(),
+                },
+                &body_file,
+                execute,
+            )
+            .await
+            .map(|(dry_run, data)| ("page.update", dry_run, data))
+            .map_err(|error| ("page.update", error)),
         },
     }
 }
