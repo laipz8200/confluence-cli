@@ -25,6 +25,45 @@ fn unsupported_image_returns_stable_error_code() {
 }
 
 #[test]
+fn unsafe_link_scheme_returns_stable_error_code() {
+    let error = markdown_to_storage("[bad](javascript:alert(1))").unwrap_err();
+
+    assert_eq!(error.code.as_str(), "unsupported_markdown");
+}
+
+#[test]
+fn safe_link_destinations_are_accepted() {
+    let converted = markdown_to_storage(
+        "[https](https://example.com) [relative](/spaces/ENG/pages/123) [parent](../page) [anchor](#section) [mail](mailto:user@example.com)",
+    )
+    .unwrap();
+
+    assert!(converted
+        .storage_html
+        .contains("<a href=\"https://example.com\">https</a>"));
+    assert!(converted
+        .storage_html
+        .contains("<a href=\"/spaces/ENG/pages/123\">relative</a>"));
+    assert!(converted
+        .storage_html
+        .contains("<a href=\"../page\">parent</a>"));
+    assert!(converted
+        .storage_html
+        .contains("<a href=\"#section\">anchor</a>"));
+    assert!(converted
+        .storage_html
+        .contains("<a href=\"mailto:user@example.com\">mail</a>"));
+}
+
+#[test]
+fn heading_extraction_uses_enabled_inline_extensions() {
+    let converted = markdown_to_storage("# ~~Gone~~ now").unwrap();
+
+    assert_eq!(converted.headings, vec!["Gone now"]);
+    assert!(!converted.headings[0].contains("~~"));
+}
+
+#[test]
 fn dry_run_summary_excludes_full_body() {
     let converted = markdown_to_storage("# Title\n\nBody").unwrap();
     let summary = create_dry_run(
@@ -42,6 +81,30 @@ fn dry_run_summary_excludes_full_body() {
 
     assert!(text.contains("\"method\":\"POST\""));
     assert!(text.contains("\"space_key\":\"ENG\""));
+    assert!(text.contains("\"storage_html_bytes\""));
+    assert!(!text.contains("<h1>Title</h1>"));
+}
+
+#[test]
+fn dry_run_update_summary_excludes_full_body() {
+    let converted = markdown_to_storage("# Title\n\nBody").unwrap();
+    let summary = create_dry_run(
+        "PUT",
+        "/api/v2/pages/123",
+        WriteTarget::Update {
+            page_id: "123".to_string(),
+            current_version: 7,
+            next_version: 8,
+        },
+        "Title",
+        &converted,
+    );
+    let text = serde_json::to_string(&summary).unwrap();
+
+    assert!(text.contains("\"method\":\"PUT\""));
+    assert!(text.contains("\"page_id\":\"123\""));
+    assert!(text.contains("\"current_version\":7"));
+    assert!(text.contains("\"next_version\":8"));
     assert!(text.contains("\"storage_html_bytes\""));
     assert!(!text.contains("<h1>Title</h1>"));
 }

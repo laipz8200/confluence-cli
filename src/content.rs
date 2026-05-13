@@ -12,11 +12,7 @@ pub struct ConvertedContent {
 pub fn markdown_to_storage(markdown: &str) -> Result<ConvertedContent, AppError> {
     reject_unsupported(markdown)?;
 
-    let mut options = Options::empty();
-    options.insert(Options::ENABLE_TABLES);
-    options.insert(Options::ENABLE_STRIKETHROUGH);
-
-    let parser = Parser::new_ext(markdown, options);
+    let parser = Parser::new_ext(markdown, parser_options());
     let mut html = String::new();
     pulldown_cmark::html::push_html(&mut html, parser);
 
@@ -28,16 +24,26 @@ pub fn markdown_to_storage(markdown: &str) -> Result<ConvertedContent, AppError>
     })
 }
 
-fn reject_unsupported(markdown: &str) -> Result<(), AppError> {
+fn parser_options() -> Options {
     let mut options = Options::empty();
     options.insert(Options::ENABLE_TABLES);
+    options.insert(Options::ENABLE_STRIKETHROUGH);
+    options
+}
 
-    for event in Parser::new_ext(markdown, options) {
+fn reject_unsupported(markdown: &str) -> Result<(), AppError> {
+    for event in Parser::new_ext(markdown, parser_options()) {
         match event {
             Event::Start(Tag::Image { .. }) => {
                 return Err(AppError::new(
                     ErrorCode::UnsupportedMarkdown,
                     "Images and attachments are not supported by the first release.",
+                ));
+            }
+            Event::Start(Tag::Link { dest_url, .. }) if !is_safe_link_destination(&dest_url) => {
+                return Err(AppError::new(
+                    ErrorCode::UnsupportedMarkdown,
+                    "Link destination scheme is not supported.",
                 ));
             }
             Event::Html(_) | Event::InlineHtml(_) => {
@@ -53,11 +59,51 @@ fn reject_unsupported(markdown: &str) -> Result<(), AppError> {
     Ok(())
 }
 
-fn collect_headings(markdown: &str) -> Vec<String> {
-    let mut options = Options::empty();
-    options.insert(Options::ENABLE_TABLES);
+fn is_safe_link_destination(destination: &str) -> bool {
+    let trimmed = destination.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
 
-    let parser = Parser::new_ext(markdown, options);
+    let lowercase = trimmed.to_ascii_lowercase();
+    lowercase.starts_with("http://")
+        || lowercase.starts_with("https://")
+        || lowercase.starts_with("mailto:")
+        || trimmed.starts_with('/')
+        || trimmed.starts_with("../")
+        || trimmed.starts_with("./")
+        || trimmed.starts_with('#')
+        || !has_scheme(trimmed)
+}
+
+fn has_scheme(destination: &str) -> bool {
+    let mut characters = destination.chars();
+    let Some(first) = characters.next() else {
+        return false;
+    };
+
+    if !first.is_ascii_alphabetic() {
+        return false;
+    }
+
+    for character in characters {
+        match character {
+            ':' => return true,
+            '/' | '?' | '#' => return false,
+            character
+                if character.is_ascii_alphanumeric()
+                    || character == '+'
+                    || character == '-'
+                    || character == '.' => {}
+            _ => return false,
+        }
+    }
+
+    false
+}
+
+fn collect_headings(markdown: &str) -> Vec<String> {
+    let parser = Parser::new_ext(markdown, parser_options());
     let mut headings = Vec::new();
     let mut current = String::new();
     let mut in_heading = false;
