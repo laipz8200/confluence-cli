@@ -1,3 +1,5 @@
+use crate::error::{AppError, ErrorCode};
+use crate::output::{error_json, print_json, success_json};
 use clap::{Parser, Subcommand};
 
 #[derive(Debug, Parser)]
@@ -72,6 +74,65 @@ pub enum PageCommand {
 }
 
 pub async fn run() -> i32 {
-    let _cli = Cli::parse();
-    0
+    let cli = Cli::parse();
+    let result = dispatch(cli).await;
+
+    match result {
+        Ok((command, dry_run, data)) => match print_json(&success_json(command, dry_run, data)) {
+            Ok(()) => 0,
+            Err(error) => {
+                let _ = print_json(&error_json(command, &error));
+                1
+            }
+        },
+        Err((command, error)) => {
+            let fallback = if command.is_empty() {
+                "unknown"
+            } else {
+                command
+            };
+            let _ = print_json(&error_json(fallback, &error));
+            1
+        }
+    }
+}
+
+async fn dispatch(
+    cli: Cli,
+) -> Result<(&'static str, bool, serde_json::Value), (&'static str, AppError)> {
+    match cli.command {
+        Commands::Config {
+            command: ConfigCommand::Init,
+        } => crate::commands::config::init()
+            .map(|data| ("config.init", false, data))
+            .map_err(|error| ("config.init", error)),
+        Commands::Space { .. } => Err((
+            "space.list",
+            AppError::new(
+                ErrorCode::InternalError,
+                "space list is unavailable in this incremental build.",
+            ),
+        )),
+        Commands::Search { .. } => Err((
+            "search",
+            AppError::new(
+                ErrorCode::InternalError,
+                "search is unavailable in this incremental build.",
+            ),
+        )),
+        Commands::Page { command } => {
+            let name = match command {
+                PageCommand::Get { .. } => "page.get",
+                PageCommand::Create { .. } => "page.create",
+                PageCommand::Update { .. } => "page.update",
+            };
+            Err((
+                name,
+                AppError::new(
+                    ErrorCode::InternalError,
+                    format!("{name} is unavailable in this incremental build."),
+                ),
+            ))
+        }
+    }
 }
