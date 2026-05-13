@@ -1,6 +1,6 @@
 use crate::error::{AppError, ErrorCode};
 use serde::{Deserialize, Serialize};
-use std::fs::OpenOptions;
+use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -99,11 +99,16 @@ pub fn save_config(path: &Path, config: &Config) -> Result<(), AppError> {
             format!("Failed to serialize config TOML: {source}"),
         )
     })?;
-    prepare_config_file_for_write(path)?;
-    let mut file = writable_config_file(path).map_err(|source| {
+    let mut file = secured_config_file(path).map_err(|source| {
         AppError::new(
             ErrorCode::ConfigInvalid,
             format!("Failed to open config at {}: {source}", path.display()),
+        )
+    })?;
+    file.set_len(0).map_err(|source| {
+        AppError::new(
+            ErrorCode::ConfigInvalid,
+            format!("Failed to truncate config at {}: {source}", path.display()),
         )
     })?;
     file.write_all(text.as_bytes()).map_err(|source| {
@@ -112,71 +117,50 @@ pub fn save_config(path: &Path, config: &Config) -> Result<(), AppError> {
             format!("Failed to write config at {}: {source}", path.display()),
         )
     })?;
-    file.set_len(text.len() as u64).map_err(|source| {
+    file.flush().map_err(|source| {
         AppError::new(
             ErrorCode::ConfigInvalid,
-            format!("Failed to truncate config at {}: {source}", path.display()),
+            format!("Failed to flush config at {}: {source}", path.display()),
         )
     })?;
-    set_owner_only_permissions(path)?;
     Ok(())
 }
 
 #[cfg(unix)]
-fn prepare_config_file_for_write(path: &Path) -> Result<(), AppError> {
-    if path.exists() {
-        set_owner_only_permissions(path)?;
+fn secured_config_file(path: &Path) -> std::io::Result<File> {
+    match create_new_config_file(path) {
+        Ok(file) => {
+            set_owner_only_file_permissions(&file)?;
+            Ok(file)
+        }
+        Err(source) if source.kind() == std::io::ErrorKind::AlreadyExists => {
+            let file = OpenOptions::new().write(true).open(path)?;
+            set_owner_only_file_permissions(&file)?;
+            Ok(file)
+        }
+        Err(source) => Err(source),
     }
-    Ok(())
-}
-
-#[cfg(not(unix))]
-fn prepare_config_file_for_write(_path: &Path) -> Result<(), AppError> {
-    Ok(())
 }
 
 #[cfg(unix)]
-fn writable_config_file(path: &Path) -> std::io::Result<std::fs::File> {
+fn create_new_config_file(path: &Path) -> std::io::Result<File> {
     use std::os::unix::fs::OpenOptionsExt;
 
     OpenOptions::new()
-        .create(true)
+        .create_new(true)
         .write(true)
-        .truncate(true)
         .mode(0o600)
         .open(path)
 }
 
-#[cfg(not(unix))]
-fn writable_config_file(path: &Path) -> std::io::Result<std::fs::File> {
-    OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .open(path)
-}
-
 #[cfg(unix)]
-fn set_owner_only_permissions(path: &Path) -> Result<(), AppError> {
+fn set_owner_only_file_permissions(file: &File) -> std::io::Result<()> {
     use std::os::unix::fs::PermissionsExt;
-    let mut permissions = std::fs::metadata(path)
-        .map_err(|source| {
-            AppError::new(
-                ErrorCode::ConfigInvalid,
-                format!("Failed to read config permissions: {source}"),
-            )
-        })?
-        .permissions();
-    permissions.set_mode(0o600);
-    std::fs::set_permissions(path, permissions).map_err(|source| {
-        AppError::new(
-            ErrorCode::ConfigInvalid,
-            format!("Failed to set config permissions: {source}"),
-        )
-    })
+
+    file.set_permissions(std::fs::Permissions::from_mode(0o600))
 }
 
 #[cfg(not(unix))]
-fn set_owner_only_permissions(_path: &Path) -> Result<(), AppError> {
-    Ok(())
+fn secured_config_file(path: &Path) -> std::io::Result<File> {
+    OpenOptions::new().create(true).write(true).open(path)
 }
