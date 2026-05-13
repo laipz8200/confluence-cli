@@ -117,7 +117,7 @@ Create `Cargo.toml`:
 name = "confluence-cli"
 version = "0.1.0"
 edition = "2021"
-license = "MIT"
+license = "Apache-2.0"
 description = "Agent-friendly CLI for Confluence Cloud"
 repository = "https://github.com/laipz8200/confluence-cli"
 

@@ -68,3 +68,7 @@ Install it with the Skills installer used by your Agent environment, for example
 ```bash
 npx skills install ./skills/confluence-cli
 ```
+
+## License
+
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE).
