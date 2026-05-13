@@ -6,12 +6,7 @@ use std::io::{self, Write};
 pub fn init() -> Result<serde_json::Value, AppError> {
     let site_url = prompt("Confluence site URL")?;
     let email = prompt("Email")?;
-    let api_token = rpassword::prompt_password("API token: ").map_err(|source| {
-        crate::error::AppError::new(
-            crate::error::ErrorCode::ConfigInvalid,
-            format!("Failed to read API token: {source}"),
-        )
-    })?;
+    let api_token = read_api_token()?;
     let default_space = prompt("Default space key")?;
 
     let config = Config {
@@ -37,6 +32,24 @@ fn prompt(label: &str) -> Result<String, AppError> {
     let stderr = io::stderr();
     let mut prompt_output = stderr.lock();
     prompt_with_io(label, &mut input, &mut prompt_output)
+}
+
+fn read_api_token() -> Result<String, AppError> {
+    match rpassword::prompt_password("API token: ") {
+        Ok(api_token) => Ok(api_token.trim().to_string()),
+        Err(source) if is_tty_unavailable(&source) => prompt("API token"),
+        Err(source) => Err(AppError::new(
+            crate::error::ErrorCode::ConfigInvalid,
+            format!("Failed to read API token: {source}"),
+        )),
+    }
+}
+
+fn is_tty_unavailable(source: &io::Error) -> bool {
+    matches!(
+        source.kind(),
+        io::ErrorKind::NotFound | io::ErrorKind::Unsupported
+    ) || source.raw_os_error() == Some(6)
 }
 
 fn prompt_with_io(

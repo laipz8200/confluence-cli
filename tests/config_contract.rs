@@ -1,3 +1,4 @@
+use assert_cmd::Command;
 use confluence_cli::auth::{basic_auth_header, redacted_token};
 use confluence_cli::config::{config_path, load_config, save_config, Config};
 use std::fs;
@@ -91,6 +92,52 @@ fn basic_auth_header_uses_email_and_token_without_redaction() {
 #[test]
 fn redacted_token_never_returns_secret() {
     assert_eq!(redacted_token("abcdef"), "[redacted]");
+}
+
+#[test]
+fn config_init_accepts_piped_stdin_and_keeps_stdout_json_only() {
+    let _lock = ENV_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+
+    let output = Command::cargo_bin("confluence-cli")
+        .unwrap()
+        .arg("config")
+        .arg("init")
+        .env("CONFLUENCE_CLI_CONFIG", &path)
+        .write_stdin("https://example.atlassian.net/wiki/\nuser@example.com\ntoken-value\nENG\n")
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    let value: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+
+    assert_eq!(value["ok"], true);
+    assert_eq!(value["command"], "config.init");
+    assert!(!stdout.contains("token-value"));
+    assert!(stderr.contains("Confluence site URL"));
+    assert!(stderr.contains("Email"));
+    assert!(stderr.contains("API token"));
+    assert!(stderr.contains("Default space key"));
+
+    let loaded = load_config(&path).unwrap();
+    assert_eq!(loaded.site_url, "https://example.atlassian.net/wiki");
+    assert_eq!(loaded.email, "user@example.com");
+    assert_eq!(loaded.api_token, "token-value");
+    assert_eq!(loaded.default_space, "ENG");
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+    }
 }
 
 #[cfg(unix)]
