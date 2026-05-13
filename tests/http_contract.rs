@@ -1,3 +1,5 @@
+use base64::engine::general_purpose::STANDARD;
+use base64::Engine;
 use confluence_cli::client::{ConfluenceClient, CreatePageRequest, UpdatePageRequest};
 use confluence_cli::config::Config;
 use pretty_assertions::assert_eq;
@@ -168,4 +170,28 @@ async fn update_page_conflict_returns_actionable_retryable_error() {
     );
     assert!(error.retryable);
     assert_eq!(error.details["response_body"], "conflict [redacted]");
+}
+
+#[tokio::test]
+async fn error_response_redacts_embedded_basic_credentials() {
+    let server = MockServer::start().await;
+    let encoded = STANDARD.encode("user@example.com:token-value");
+    Mock::given(method("GET"))
+        .and(path("/api/v2/spaces"))
+        .respond_with(
+            ResponseTemplate::new(500)
+                .set_body_string(format!("upstream echoed Authorization: Basic {encoded}")),
+        )
+        .mount(&server)
+        .await;
+
+    let client = ConfluenceClient::new(config(&server.uri())).unwrap();
+    let error = client.list_spaces().await.unwrap_err();
+    let details = serde_json::to_string(&error.details).unwrap();
+
+    assert_eq!(error.code.as_str(), "network_error");
+    assert!(!details.contains(&encoded));
+    assert!(!details.contains("token-value"));
+    assert!(!details.contains("user@example.com"));
+    assert!(details.contains("[redacted]"));
 }

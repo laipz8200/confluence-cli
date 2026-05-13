@@ -82,6 +82,35 @@ fn invalid_config_rejects_missing_fields() {
 }
 
 #[test]
+fn config_rejects_non_loopback_http_site_url() {
+    let config = Config {
+        site_url: "http://example.atlassian.net/wiki".to_string(),
+        email: "user@example.com".to_string(),
+        api_token: "token-value".to_string(),
+        default_space: "ENG".to_string(),
+    };
+
+    let error = config.validate().unwrap_err();
+
+    assert_eq!(error.code.as_str(), "config_invalid");
+    assert!(error.message.contains("https://"));
+}
+
+#[test]
+fn config_allows_loopback_http_for_mock_servers() {
+    let config = Config {
+        site_url: "http://127.0.0.1:12345/wiki/".to_string(),
+        email: "user@example.com".to_string(),
+        api_token: "token-value".to_string(),
+        default_space: "ENG".to_string(),
+    };
+
+    let validated = config.validate().unwrap();
+
+    assert_eq!(validated.site_url, "http://127.0.0.1:12345/wiki");
+}
+
+#[test]
 fn basic_auth_header_uses_email_and_token_without_redaction() {
     let value = basic_auth_header("user@example.com", "token-value").unwrap();
 

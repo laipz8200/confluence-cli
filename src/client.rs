@@ -1,6 +1,8 @@
 use crate::auth::{auth_header_name, basic_auth_header};
 use crate::config::Config;
 use crate::error::{AppError, ErrorCode};
+use base64::engine::general_purpose::STANDARD;
+use base64::Engine;
 use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, CONTENT_TYPE};
 use reqwest::{Client, Method, StatusCode, Url};
 use serde::{Deserialize, Serialize};
@@ -283,7 +285,10 @@ impl ConfluenceClient {
     }
 
     fn sanitize_response_body(&self, body: &str) -> String {
-        body.replace(&self.api_token, "[redacted]")
+        let encoded_basic = STANDARD.encode(format!("{}:{}", self.email, self.api_token));
+
+        body.replace(&encoded_basic, "[redacted]")
+            .replace(&self.api_token, "[redacted]")
             .replace(&self.email, "[redacted]")
     }
 }

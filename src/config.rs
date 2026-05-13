@@ -2,7 +2,9 @@ use crate::error::{AppError, ErrorCode};
 use serde::{Deserialize, Serialize};
 use std::fs::{File, OpenOptions};
 use std::io::Write;
+use std::net::IpAddr;
 use std::path::{Path, PathBuf};
+use url::Url;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Config {
@@ -25,13 +27,31 @@ impl Config {
                 "Config must include site_url, email, api_token, and default_space.",
             ));
         }
-        if !self.site_url.starts_with("https://") && !self.site_url.starts_with("http://") {
+        let site_url = Url::parse(&self.site_url).map_err(|source| {
+            AppError::new(
+                ErrorCode::ConfigInvalid,
+                format!("Config site_url must be a valid URL: {source}"),
+            )
+        })?;
+        if site_url.scheme() != "https" && !is_loopback_http_url(&site_url) {
             return Err(AppError::new(
                 ErrorCode::ConfigInvalid,
-                "Config site_url must start with http:// or https://.",
+                "Config site_url must use https:// unless it points to a loopback HTTP test server.",
             ));
         }
         Ok(self)
+    }
+}
+
+fn is_loopback_http_url(site_url: &Url) -> bool {
+    if site_url.scheme() != "http" {
+        return false;
+    }
+
+    match site_url.host_str() {
+        Some("localhost") => true,
+        Some(host) => host.parse::<IpAddr>().is_ok_and(|addr| addr.is_loopback()),
+        None => false,
     }
 }
 
