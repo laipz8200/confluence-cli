@@ -92,3 +92,50 @@ fn basic_auth_header_uses_email_and_token_without_redaction() {
 fn redacted_token_never_returns_secret() {
     assert_eq!(redacted_token("abcdef"), "[redacted]");
 }
+
+#[cfg(unix)]
+#[test]
+fn newly_created_config_file_has_owner_only_permissions() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    let config = Config {
+        site_url: "https://example.atlassian.net/wiki".to_string(),
+        email: "user@example.com".to_string(),
+        api_token: "token-value".to_string(),
+        default_space: "ENG".to_string(),
+    };
+
+    save_config(&path, &config).unwrap();
+
+    let mode = fs::metadata(path).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode, 0o600);
+}
+
+#[cfg(unix)]
+#[test]
+fn rewriting_existing_config_file_tightens_permissions_before_writing() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    fs::write(&path, "old token-bearing content").unwrap();
+    let mut permissions = fs::metadata(&path).unwrap().permissions();
+    permissions.set_mode(0o644);
+    fs::set_permissions(&path, permissions).unwrap();
+
+    let config = Config {
+        site_url: "https://example.atlassian.net/wiki/".to_string(),
+        email: "new-user@example.com".to_string(),
+        api_token: "new-token-value".to_string(),
+        default_space: "DOC".to_string(),
+    };
+
+    save_config(&path, &config).unwrap();
+
+    let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+    let loaded = load_config(&path).unwrap();
+    assert_eq!(mode, 0o600);
+    assert_eq!(loaded, config.validate().unwrap());
+}

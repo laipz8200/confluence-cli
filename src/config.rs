@@ -99,6 +99,7 @@ pub fn save_config(path: &Path, config: &Config) -> Result<(), AppError> {
             format!("Failed to serialize config TOML: {source}"),
         )
     })?;
+    prepare_config_file_for_write(path)?;
     let mut file = writable_config_file(path).map_err(|source| {
         AppError::new(
             ErrorCode::ConfigInvalid,
@@ -118,6 +119,19 @@ pub fn save_config(path: &Path, config: &Config) -> Result<(), AppError> {
         )
     })?;
     set_owner_only_permissions(path)?;
+    Ok(())
+}
+
+#[cfg(unix)]
+fn prepare_config_file_for_write(path: &Path) -> Result<(), AppError> {
+    if path.exists() {
+        set_owner_only_permissions(path)?;
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn prepare_config_file_for_write(_path: &Path) -> Result<(), AppError> {
     Ok(())
 }
 
