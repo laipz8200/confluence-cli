@@ -3,8 +3,10 @@ use crate::error::AppError;
 use clap::Subcommand;
 
 mod config_init;
-pub mod page;
+mod page_body;
+mod page_create;
 mod page_get;
+mod page_update;
 mod search;
 mod space_list;
 
@@ -70,32 +72,8 @@ pub enum SpaceCommand {
 #[derive(Debug, Subcommand)]
 pub enum PageCommand {
     Get(page_get::PageGetArgs),
-    Create {
-        #[arg(long)]
-        space_key: String,
-        #[arg(long)]
-        title: String,
-        #[arg(long)]
-        body_file: std::path::PathBuf,
-        #[arg(long, value_enum)]
-        body_representation: Option<page::BodyRepresentation>,
-        #[arg(long)]
-        parent_id: Option<String>,
-        #[arg(long)]
-        execute: bool,
-    },
-    Update {
-        #[arg(long)]
-        page_id: String,
-        #[arg(long)]
-        title: String,
-        #[arg(long)]
-        body_file: std::path::PathBuf,
-        #[arg(long, value_enum)]
-        body_representation: Option<page::BodyRepresentation>,
-        #[arg(long)]
-        execute: bool,
-    },
+    Create(page_create::PageCreateArgs),
+    Update(page_update::PageUpdateArgs),
 }
 
 pub async fn dispatch(command: Commands) -> DispatchResult {
@@ -125,40 +103,18 @@ pub async fn dispatch(command: Commands) -> DispatchResult {
                     .await
                     .map_err(to_failure(page_get::COMMAND))
             }
-            PageCommand::Create {
-                space_key,
-                title,
-                body_file,
-                body_representation,
-                parent_id,
-                execute,
-            } => page::create(
-                &space_key,
-                &title,
-                &body_file,
-                body_representation,
-                parent_id,
-                execute,
-            )
-            .await
-            .map(|(dry_run, data)| CommandOutput::new("page.create", dry_run, data))
-            .map_err(to_failure("page.create")),
-            PageCommand::Update {
-                page_id,
-                title,
-                body_file,
-                body_representation,
-                execute,
-            } => page::update(
-                &page_id,
-                &title,
-                &body_file,
-                body_representation,
-                execute,
-            )
-            .await
-            .map(|(dry_run, data)| CommandOutput::new("page.update", dry_run, data))
-            .map_err(to_failure("page.update")),
+            PageCommand::Create(args) => {
+                let ctx = load_context(page_create::COMMAND)?;
+                page_create::run(args, ctx)
+                    .await
+                    .map_err(to_failure(page_create::COMMAND))
+            }
+            PageCommand::Update(args) => {
+                let ctx = load_context(page_update::COMMAND)?;
+                page_update::run(args, ctx)
+                    .await
+                    .map_err(to_failure(page_update::COMMAND))
+            }
         },
     }
 }
