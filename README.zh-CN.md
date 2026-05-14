@@ -36,7 +36,21 @@
 
 ## 安装
 
-从源码检出目录安装：
+安装最新 release 二进制文件：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/laipz8200/confluence-cli/main/install.sh | sh
+```
+
+安装脚本支持 Linux x86_64、Linux arm64、macOS x86_64 和 macOS arm64
+release 产物。默认安装到 `~/.local/bin`。可以通过环境变量覆盖安装目录或版本：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/laipz8200/confluence-cli/main/install.sh | CONFLUENCE_CLI_INSTALL_DIR=/usr/local/bin sh
+curl -fsSL https://raw.githubusercontent.com/laipz8200/confluence-cli/main/install.sh | CONFLUENCE_CLI_VERSION=0.1.0 sh
+```
+
+需要本地构建时，可以从源码检出目录安装：
 
 ```bash
 cargo install --path .
