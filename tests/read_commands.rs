@@ -97,6 +97,26 @@ fn search_query_and_cql_returns_json_validation_error() {
     assert_eq!(stdout["error"]["code"], "confluence_validation_failed");
 }
 
+#[test]
+fn search_query_and_cql_validates_before_loading_missing_config() {
+    let dir = TempDir::new().unwrap();
+
+    let mut cmd = Command::cargo_bin("confluence-cli").unwrap();
+    let output = cmd
+        .env("CONFLUENCE_CLI_CONFIG", dir.path().join("missing-config.toml"))
+        .args(["search", "--query", "deploy", "--cql", r#"text ~ "deploy""#])
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+    let stdout: Value = serde_json::from_slice(&output).unwrap();
+
+    assert_eq!(stdout["ok"], false);
+    assert_eq!(stdout["command"], "search");
+    assert_eq!(stdout["error"]["code"], "confluence_validation_failed");
+}
+
 #[tokio::test]
 async fn page_get_requests_storage_body() {
     let server = MockServer::start().await;

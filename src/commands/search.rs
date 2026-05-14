@@ -1,28 +1,40 @@
-use crate::client::ConfluenceClient;
-use crate::config::load_default_config;
+use crate::command_context::CommandContext;
+use crate::commands::{CommandOutput, CommandResult};
 use crate::error::{AppError, ErrorCode};
+use clap::Args;
 use serde_json::json;
 
-pub async fn run(
+pub const COMMAND: &str = "search";
+
+#[derive(Debug, Args)]
+pub struct SearchArgs {
+    #[arg(long)]
     query: Option<String>,
+    #[arg(long)]
     cql: Option<String>,
-) -> Result<serde_json::Value, AppError> {
-    let cql = match (query, cql) {
-        (Some(query), None) => format!("text ~ \"{}\"", escape_cql_text(&query)),
-        (None, Some(cql)) => cql,
-        _ => {
-            return Err(AppError::new(
+}
+
+impl SearchArgs {
+    pub fn cql(self) -> Result<String, AppError> {
+        match (self.query, self.cql) {
+            (Some(query), None) => Ok(format!("text ~ \"{}\"", escape_cql_text(&query))),
+            (None, Some(cql)) => Ok(cql),
+            _ => Err(AppError::new(
                 ErrorCode::ConfluenceValidationFailed,
                 "Provide exactly one of --query or --cql.",
-            ));
+            )),
         }
-    };
+    }
+}
 
-    let config = load_default_config()?;
-    let client = ConfluenceClient::new(config)?;
-    let result = client.search(&cql).await?;
+pub async fn run(cql: String, ctx: CommandContext) -> CommandResult {
+    let result = ctx.client().search(&cql).await?;
 
-    Ok(json!({ "cql": cql, "result": result }))
+    Ok(CommandOutput::new(
+        COMMAND,
+        false,
+        json!({ "cql": cql, "result": result }),
+    ))
 }
 
 fn escape_cql_text(value: &str) -> String {
