@@ -44,6 +44,22 @@ For local development builds:
 cargo build --release
 ```
 
+## Agent Skills Package
+
+If you are using an Agent, install the companion Skills package after installing the CLI binary:
+
+```text
+skills/confluence-cli
+```
+
+Install it with the Skills installer used by your Agent environment:
+
+```bash
+npx skills install ./skills/confluence-cli
+```
+
+The skill instructs Agents to use dry-runs first, summarize planned writes, and ask for explicit approval before adding `--execute`.
+
 ## Quick Start
 
 Create your config:
@@ -166,22 +182,6 @@ Application errors use the same shape with a stable error code:
 ```
 
 `--help`, `--version`, and clap argument parse errors may print normal CLI text.
-
-## Agent Skills Package
-
-This repository includes a generic Skills package at:
-
-```text
-skills/confluence-cli
-```
-
-Install it with the Skills installer used by your Agent environment:
-
-```bash
-npx skills install ./skills/confluence-cli
-```
-
-The skill instructs Agents to use dry-runs first, summarize planned writes, and ask for explicit approval before adding `--execute`.
 
 ## Development
 
