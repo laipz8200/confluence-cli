@@ -1,26 +1,100 @@
-# confluence-cli
+<p align="center">
+  <img src="assets/logo.svg" alt="confluence-cli logo" width="120" />
+</p>
 
-`confluence-cli` is an Agent-friendly CLI for Confluence Cloud. It exposes a small command surface with stable JSON output and safe dry-run writes.
+<h1 align="center">confluence-cli</h1>
 
-## Install From Source
+<p align="center">
+  <strong>Agent-friendly Confluence Cloud workflows from your terminal.</strong>
+</p>
+
+<p align="center">
+  Stable JSON output, safe dry-run writes, Markdown-to-storage conversion, and a companion Skills package for automation-heavy teams.
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-2f7d68?style=flat-square"></a>
+  <img alt="Rust 2021" src="https://img.shields.io/badge/Rust-2021-f46623?style=flat-square">
+  <img alt="Dry-run writes by default" src="https://img.shields.io/badge/writes-dry--run%20by%20default-4b5563?style=flat-square">
+  <img alt="Agent friendly" src="https://img.shields.io/badge/agent-friendly-2563eb?style=flat-square">
+</p>
+
+## What It Does
+
+`confluence-cli` is a small, focused CLI for Confluence Cloud. It is designed for humans and Agents that need predictable Confluence reads and safer page writes without wrapping the entire REST API.
+
+- Stable JSON envelopes for operational commands.
+- Search, page reads, space listing, page creation, and page updates.
+- Write commands that dry-run by default and only write with `--execute`.
+- Markdown input converted to Confluence storage format.
+- Raw Confluence storage XML support when layouts or macros must be preserved.
+- A companion Skills package that teaches Agents how to use the CLI safely.
+
+## Install
+
+Install from a source checkout:
 
 ```bash
 cargo install --path .
 ```
 
-For local development:
+For local development builds:
 
 ```bash
 cargo build --release
 ```
 
-## Configure
+## Agent Skills Package
 
-Run:
+If you are using an Agent, install the companion Skills package after installing the CLI binary:
+
+```text
+skills/confluence-cli
+```
+
+Install it with the Skills installer used by your Agent environment:
+
+```bash
+npx skills install ./skills/confluence-cli
+```
+
+The skill instructs Agents to use dry-runs first, summarize planned writes, and ask for explicit approval before adding `--execute`.
+
+## Quick Start
+
+Create your config:
 
 ```bash
 confluence-cli config init
 ```
+
+List spaces:
+
+```bash
+confluence-cli space list
+```
+
+Search by text:
+
+```bash
+confluence-cli search --query "deploy"
+```
+
+Read a page:
+
+```bash
+confluence-cli page get --page-id 123456
+```
+
+Draft a page write safely:
+
+```bash
+confluence-cli page create --space-key ENG --title "Release Notes" --body-file release-notes.md
+```
+
+The create command above returns dry-run JSON and does not write to Confluence. Add `--execute` only after reviewing the dry-run output.
+
+## Configuration
 
 The default config path is:
 
@@ -28,49 +102,99 @@ The default config path is:
 ~/.config/confluence-cli/config.toml
 ```
 
-Override it with:
+Override it per command with:
 
 ```bash
 CONFLUENCE_CLI_CONFIG=/path/to/config.toml confluence-cli space list
 ```
 
-The API token is stored in plaintext. The CLI sets `0600` permissions on Unix platforms. Use a dedicated Atlassian API token and keep the config file out of source control.
+The API token is stored in plaintext. On Unix platforms, `confluence-cli` writes the config file with `0600` permissions. Use a dedicated Atlassian API token and keep the config file out of source control.
 
-## Commands
+## Command Map
+
+| Command | Use it for | Notes |
+| --- | --- | --- |
+| `confluence-cli config init` | Create the local config file | Interactive setup |
+| `confluence-cli space list` | List accessible spaces | JSON output |
+| `confluence-cli search --query "deploy"` | Search by text | Builds a conservative CQL query |
+| `confluence-cli search --cql 'space = ENG and text ~ "deploy"'` | Run explicit CQL | For advanced searches |
+| `confluence-cli page get --page-id 123456` | Read page metadata and body | Uses page IDs, not titles |
+| `confluence-cli page create --space-key ENG --title "New Page" --body-file page.md` | Preview a page create | Dry-run by default |
+| `confluence-cli page create --space-key ENG --title "New Page" --body-file page.md --parent-id 123456` | Preview a child page create | Dry-run by default |
+| `confluence-cli page update --page-id 123456 --title "Updated Page" --body-file page.md` | Preview a page update | Dry-run by default |
+
+## Safe Writes
+
+Write commands are intentionally two-step:
+
+1. Run the create or update command without `--execute`.
+2. Inspect the returned dry-run JSON.
+3. Re-run the same command with `--execute` only after approval.
 
 ```bash
-confluence-cli space list
-confluence-cli search --query "deploy"
-confluence-cli search --cql 'space = ENG and text ~ "deploy"'
-confluence-cli page get --page-id 123456
-confluence-cli page create --space-key ENG --title "New Page" --body-file page.md
-confluence-cli page create --space-key ENG --title "New Page" --body-file page.md --execute
-confluence-cli page create --space-key ENG --title "New Page" --body-file page.storage.xml
 confluence-cli page update --page-id 123456 --title "Updated Page" --body-file page.md
 confluence-cli page update --page-id 123456 --title "Updated Page" --body-file page.md --execute
-confluence-cli page update --page-id 123456 --title "Updated Page" --body-file page.storage.xml
 ```
 
-Successful operational subcommands print JSON, and app-level validation or API errors print JSON envelopes. `--help`, `--version`, and clap argument parse errors may print normal CLI text. Write commands are dry-run by default. A real create or update only happens when `--execute` is present.
+Updates require `--page-id`; the CLI does not update pages by title. During update dry-runs, the CLI reads the current page version so the eventual write can use the next Confluence version number.
 
-Write commands infer the body representation from the body file name. Files ending in `.storage`, `.storage.xml`, or `.xml` are sent as Confluence storage XML unchanged, including layouts and macros such as `<ac:structured-macro>`. Other files are read as Markdown and converted to Confluence storage format. Use `--body-representation storage` or `--body-representation markdown` to override inference for non-standard file names.
+## Body Formats
 
-## Agent Safety
+By default, body format is inferred from the file name:
 
-Agents should run write commands without `--execute` first, inspect the returned dry-run JSON, show or summarize it to the user, and ask for explicit approval before executing the write. Updates require `--page-id`; the CLI does not update pages by title. In storage mode, the CLI sends the provided storage XML to Confluence unchanged and relies on Confluence to validate it.
+| File name | Representation |
+| --- | --- |
+| `page.md` | Markdown converted to Confluence storage HTML |
+| `page.storage` | Raw Confluence storage XML |
+| `page.storage.xml` | Raw Confluence storage XML |
+| `page.xml` | Raw Confluence storage XML |
 
-## Skills Package
+Use `--body-representation storage` or `--body-representation markdown` to override inference for non-standard file names.
 
-The repository includes a generic Skills package at:
+Storage mode sends the file contents unchanged. Use it when Markdown cannot represent the page, such as Confluence layouts or macros like `<ac:structured-macro>`.
 
-```text
-skills/confluence-cli
+## JSON Contract
+
+Successful operational commands return a stable envelope:
+
+```json
+{
+  "ok": true,
+  "command": "page.update",
+  "dry_run": true,
+  "data": {}
+}
 ```
 
-Install it with the Skills installer used by your Agent environment, for example:
+Application errors use the same shape with a stable error code:
+
+```json
+{
+  "ok": false,
+  "command": "page.update",
+  "error": {
+    "code": "confluence_version_conflict",
+    "message": "Page was updated by someone else. Fetch the latest version and retry.",
+    "retryable": true,
+    "details": {}
+  }
+}
+```
+
+`--help`, `--version`, and clap argument parse errors may print normal CLI text.
+
+## Development
+
+Run the test suite:
 
 ```bash
-npx skills install ./skills/confluence-cli
+cargo test --locked
+```
+
+Run Clippy before opening a pull request:
+
+```bash
+cargo clippy --locked --all-targets --all-features -- -D warnings
 ```
 
 ## License
