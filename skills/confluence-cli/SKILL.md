@@ -25,7 +25,13 @@ confluence-cli --version
 
 `confluence-cli --version` prints normal CLI version text, not JSON.
 
-If the command is missing, tell the user to install it from the `confluence-cli` repository root or another source checkout:
+If the command is missing, tell the user to install the latest release binary:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/laipz8200/confluence-cli/main/install.sh | sh
+```
+
+If they need a local source build, tell them to run this from the `confluence-cli` repository root or another source checkout:
 
 ```bash
 cargo install --path .
