@@ -1,9 +1,13 @@
 use assert_cmd::Command;
 use confluence_cli::auth::{basic_auth_header, redacted_token};
+use confluence_cli::command_context::CommandContext;
 use confluence_cli::config::{config_path, load_config, save_config, Config};
+use serde_json::json;
 use std::fs;
 use std::sync::{Mutex, MutexGuard};
 use tempfile::tempdir;
+use wiremock::matchers::{method, path, query_param};
+use wiremock::{Mock, MockServer, ResponseTemplate};
 
 static ENV_LOCK: Mutex<()> = Mutex::new(());
 
@@ -108,6 +112,36 @@ fn config_allows_loopback_http_for_mock_servers() {
     let validated = config.validate().unwrap();
 
     assert_eq!(validated.site_url, "http://127.0.0.1:12345/wiki");
+}
+
+#[tokio::test]
+async fn command_context_loads_client_from_config_env_var() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v2/spaces"))
+        .and(query_param("limit", "25"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "results": [{"id": "ctx-123", "key": "CTX", "name": "Context Space"}],
+            "_links": {}
+        })))
+        .mount(&server)
+        .await;
+
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    let config = Config {
+        site_url: server.uri(),
+        email: "user@example.com".to_string(),
+        api_token: "token-value".to_string(),
+        default_space: "ENG".to_string(),
+    };
+    save_config(&path, &config).unwrap();
+
+    let _guard = EnvVarGuard::set("CONFLUENCE_CLI_CONFIG", &path);
+    let context = CommandContext::load().unwrap();
+    let spaces = context.client().list_spaces().await.unwrap();
+
+    assert_eq!(spaces[0].key, "CTX");
 }
 
 #[test]
