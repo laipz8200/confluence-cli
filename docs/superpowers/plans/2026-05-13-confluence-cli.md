@@ -2586,16 +2586,12 @@ Agents should run write commands without `--execute` first, inspect the returned
 
 ## Skills Package
 
-The repository includes a generic Skills package at:
+`confluence-cli config init` asks whether to install the companion Skills package after saving your config. Press Enter to install it, or enter `n` to skip.
 
-```text
-skills/confluence-cli
-```
-
-Install it with the Skills installer used by your Agent environment, for example:
+To install or reinstall it manually:
 
 ```bash
-npx skills install ./skills/confluence-cli
+npx skills add laipz8200/confluence-cli --skill confluence-cli
 ```
 ```
 
