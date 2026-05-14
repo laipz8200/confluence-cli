@@ -32,6 +32,8 @@ pub fn create_dry_run(
         "body": {
             "format": "storage",
             "summary": {
+                "source_representation": content.source_representation,
+                "source_bytes": content.source_bytes,
                 "markdown_bytes": content.markdown_bytes,
                 "storage_html_bytes": content.storage_html_bytes,
                 "headings": content.headings,

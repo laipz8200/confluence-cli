@@ -1,4 +1,4 @@
-use confluence_cli::content::markdown_to_storage;
+use confluence_cli::content::{markdown_to_storage, storage_to_storage};
 use confluence_cli::dry_run::{create_dry_run, WriteTarget};
 use pretty_assertions::assert_eq;
 
@@ -61,6 +61,19 @@ fn heading_extraction_uses_enabled_inline_extensions() {
 
     assert_eq!(converted.headings, vec!["Gone now"]);
     assert!(!converted.headings[0].contains("~~"));
+}
+
+#[test]
+fn storage_representation_passes_confluence_storage_through() {
+    let storage = r#"<ac:structured-macro ac:name="recently-updated" ac:schema-version="1"><ac:parameter ac:name="max">5</ac:parameter></ac:structured-macro>"#;
+
+    let converted = storage_to_storage(storage).unwrap();
+
+    assert_eq!(converted.storage_html, storage);
+    assert_eq!(converted.source_representation, "storage");
+    assert_eq!(converted.source_bytes, storage.len());
+    assert_eq!(converted.storage_html_bytes, storage.len());
+    assert!(converted.headings.is_empty());
 }
 
 #[test]

@@ -45,15 +45,19 @@ confluence-cli search --cql 'space = ENG and text ~ "deploy"'
 confluence-cli page get --page-id 123456
 confluence-cli page create --space-key ENG --title "New Page" --body-file page.md
 confluence-cli page create --space-key ENG --title "New Page" --body-file page.md --execute
+confluence-cli page create --space-key ENG --title "New Page" --body-file page.storage.xml
 confluence-cli page update --page-id 123456 --title "Updated Page" --body-file page.md
 confluence-cli page update --page-id 123456 --title "Updated Page" --body-file page.md --execute
+confluence-cli page update --page-id 123456 --title "Updated Page" --body-file page.storage.xml
 ```
 
 Successful operational subcommands print JSON, and app-level validation or API errors print JSON envelopes. `--help`, `--version`, and clap argument parse errors may print normal CLI text. Write commands are dry-run by default. A real create or update only happens when `--execute` is present.
 
+Write commands infer the body representation from the body file name. Files ending in `.storage`, `.storage.xml`, or `.xml` are sent as Confluence storage XML unchanged, including layouts and macros such as `<ac:structured-macro>`. Other files are read as Markdown and converted to Confluence storage format. Use `--body-representation storage` or `--body-representation markdown` to override inference for non-standard file names.
+
 ## Agent Safety
 
-Agents should run write commands without `--execute` first, inspect the returned dry-run JSON, show or summarize it to the user, and ask for explicit approval before executing the write. Updates require `--page-id`; the CLI does not update pages by title.
+Agents should run write commands without `--execute` first, inspect the returned dry-run JSON, show or summarize it to the user, and ask for explicit approval before executing the write. Updates require `--page-id`; the CLI does not update pages by title. In storage mode, the CLI sends the provided storage XML to Confluence unchanged and relies on Confluence to validate it.
 
 ## Skills Package
 

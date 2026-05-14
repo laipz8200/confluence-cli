@@ -1,3 +1,4 @@
+use crate::commands::page::BodyRepresentation;
 use crate::error::AppError;
 use crate::output::{error_json, print_json, success_json};
 use clap::{Parser, Subcommand};
@@ -56,6 +57,8 @@ pub enum PageCommand {
         title: String,
         #[arg(long)]
         body_file: std::path::PathBuf,
+        #[arg(long, value_enum)]
+        body_representation: Option<BodyRepresentation>,
         #[arg(long)]
         parent_id: Option<String>,
         #[arg(long)]
@@ -68,6 +71,8 @@ pub enum PageCommand {
         title: String,
         #[arg(long)]
         body_file: std::path::PathBuf,
+        #[arg(long, value_enum)]
+        body_representation: Option<BodyRepresentation>,
         #[arg(long)]
         execute: bool,
     },
@@ -125,21 +130,36 @@ async fn dispatch(
                 space_key,
                 title,
                 body_file,
+                body_representation,
                 parent_id,
                 execute,
-            } => crate::commands::page::create(&space_key, &title, &body_file, parent_id, execute)
-                .await
-                .map(|(dry_run, data)| ("page.create", dry_run, data))
-                .map_err(|error| ("page.create", error)),
+            } => crate::commands::page::create(
+                &space_key,
+                &title,
+                &body_file,
+                body_representation,
+                parent_id,
+                execute,
+            )
+            .await
+            .map(|(dry_run, data)| ("page.create", dry_run, data))
+            .map_err(|error| ("page.create", error)),
             PageCommand::Update {
                 page_id,
                 title,
                 body_file,
+                body_representation,
                 execute,
-            } => crate::commands::page::update(&page_id, &title, &body_file, execute)
-                .await
-                .map(|(dry_run, data)| ("page.update", dry_run, data))
-                .map_err(|error| ("page.update", error)),
+            } => crate::commands::page::update(
+                &page_id,
+                &title,
+                &body_file,
+                body_representation,
+                execute,
+            )
+            .await
+            .map(|(dry_run, data)| ("page.update", dry_run, data))
+            .map_err(|error| ("page.update", error)),
         },
     }
 }
