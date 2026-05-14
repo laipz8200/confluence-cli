@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="confluence-cli brings agent-friendly Confluence Cloud workflows to the terminal."
+    />
+    <title>confluence-cli</title>
+    <link rel="icon" href="assets/logo.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main>
+      <section class="hero" aria-labelledby="product-name">
+        <div class="hero__background" aria-hidden="true">
+          <span class="hero__flow hero__flow--one"></span>
+          <span class="hero__flow hero__flow--two"></span>
+        </div>
+        <div class="hero__inner">
+          <img
+            class="hero__logo"
+            src="assets/logo.svg"
+            alt="confluence-cli logo"
+            width="160"
+            height="160"
+          />
+          <h1 id="product-name">confluence-cli</h1>
+          <p class="hero__tagline">
+            Agent-friendly Confluence Cloud workflows from your terminal.
+          </p>
+          <div class="hero__actions" aria-label="Primary actions">
+            <a class="button button--primary" href="#install">Install</a>
+            <a
+              class="button button--secondary"
+              href="https://github.com/laipz8200/confluence-cli"
+              rel="noreferrer"
+            >
+              GitHub
+            </a>
+          </div>
+        </div>
+        <a class="scroll-cue" href="#install" aria-label="Scroll to install section">
+          <span class="scroll-cue__icon" aria-hidden="true"></span>
+        </a>
+      </section>
+
+      <section class="install" id="install" aria-labelledby="install-title">
+        <div class="install__inner">
+          <p class="section-label">Install</p>
+          <h2 id="install-title">Clone, install, and configure.</h2>
+          <div class="terminal" role="region" aria-label="Installation commands">
+            <div class="terminal__chrome">
+              <div class="terminal__controls" aria-hidden="true">
+                <span class="terminal__control terminal__control--red"></span>
+                <span class="terminal__control terminal__control--yellow"></span>
+                <span class="terminal__control terminal__control--green"></span>
+              </div>
+              <p class="terminal__title">confluence-cli install</p>
+            </div>
+            <pre class="terminal__body"><code><span class="terminal__prompt">$</span> git clone https://github.com/laipz8200/confluence-cli.git
+<span class="terminal__prompt">$</span> cd confluence-cli
+<span class="terminal__prompt">$</span> cargo install --path .
+<span class="terminal__prompt">$</span> confluence-cli config init</code></pre>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
