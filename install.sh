@@ -110,3 +110,15 @@ case ":$PATH:" in
   *":$install_dir:"*) ;;
   *) printf 'Note: %s is not on PATH.\n' "$install_dir" ;;
 esac
+
+printf 'Running %s config init\n' "$install_dir/$BIN_NAME"
+if [ -t 0 ]; then
+  "$install_dir/$BIN_NAME" config init \
+    || fail "Failed to run $BIN_NAME config init."
+elif ( : </dev/tty ) 2>/dev/null; then
+  "$install_dir/$BIN_NAME" config init </dev/tty \
+    || fail "Failed to run $BIN_NAME config init."
+else
+  "$install_dir/$BIN_NAME" config init \
+    || fail "Failed to run $BIN_NAME config init."
+fi
