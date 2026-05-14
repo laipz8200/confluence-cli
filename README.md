@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  Stable JSON output, safe dry-run writes, Markdown-to-storage conversion, and a companion Skills package for automation-heavy teams.
+  Stable JSON output, safe dry-run writes, Markdown-to-storage conversion, and a companion Skills package for teams that rely on automation.
 </p>
 
 <p align="center">
@@ -25,14 +25,14 @@
 
 ## What It Does
 
-`confluence-cli` is a small, focused CLI for Confluence Cloud. It is designed for humans and Agents that need predictable Confluence reads and safer page writes without wrapping the entire REST API.
+`confluence-cli` is a small, focused CLI for Confluence Cloud. It is designed for people and automation agents that need predictable Confluence reads and safer page writes without wrapping the entire REST API.
 
-- Stable JSON envelopes for operational commands.
-- Search, page reads, space listing, page creation, and page updates.
+- Stable JSON response envelopes for operational commands.
+- Search, read pages, list spaces, create pages, and update pages.
 - Write commands that dry-run by default and only write with `--execute`.
 - Markdown input converted to Confluence storage format.
 - Raw Confluence storage XML support when layouts or macros must be preserved.
-- A companion Skills package that teaches Agents how to use the CLI safely.
+- A companion Skills package that helps agents use the CLI safely.
 
 ## Install
 
@@ -65,7 +65,7 @@ cargo build --release
 
 ## Agent Skills Package
 
-If you are using an Agent, `confluence-cli config init` asks whether to install the companion Skills package after saving your config. Press Enter to install it, or enter `n` to skip.
+If you use an agent workflow, `confluence-cli config init` asks whether to install the companion Skills package after saving your config. Press Enter to install it, or enter `n` to skip.
 
 The `config init` installer runs the same `npx skills add ...` command shown below. If `npx` is not available on your `PATH`, this step is marked failed and skipped while the saved config remains usable.
 
@@ -75,7 +75,7 @@ To install or reinstall it manually:
 npx skills add laipz8200/confluence-cli --skill confluence-cli
 ```
 
-The skill instructs Agents to use dry-runs first, summarize planned writes, and ask for explicit approval before adding `--execute`.
+The skill guides agents to use dry-runs first, summarize planned writes, and ask for explicit approval before adding `--execute`.
 
 ## Quick Start
 
@@ -107,7 +107,7 @@ Read a page:
 confluence-cli page get --page-id 123456
 ```
 
-Draft a page write safely:
+Preview a page write safely:
 
 ```bash
 confluence-cli page create --space-key ENG --title "Release Notes" --body-file release-notes.md
@@ -143,13 +143,13 @@ on stdout and print a warning to stderr when they load the config.
 | `confluence-cli search --query "deploy"` | Search by text | Builds a conservative CQL query |
 | `confluence-cli search --cql 'space = ENG and text ~ "deploy"'` | Run explicit CQL | For advanced searches |
 | `confluence-cli page get --page-id 123456` | Read page metadata and body | Uses page IDs, not titles |
-| `confluence-cli page create --space-key ENG --title "New Page" --body-file page.md` | Preview a page create | Dry-run by default |
-| `confluence-cli page create --space-key ENG --title "New Page" --body-file page.md --parent-id 123456` | Preview a child page create | Dry-run by default |
-| `confluence-cli page update --page-id 123456 --title "Updated Page" --body-file page.md` | Preview a page update | Dry-run by default |
+| `confluence-cli page create --space-key ENG --title "New Page" --body-file page.md` | Preview page creation | Dry-run by default |
+| `confluence-cli page create --space-key ENG --title "New Page" --body-file page.md --parent-id 123456` | Preview child page creation | Dry-run by default |
+| `confluence-cli page update --page-id 123456 --title "Updated Page" --body-file page.md` | Preview page update | Dry-run by default |
 
 ## Safe Writes
 
-Write commands are intentionally two-step:
+Write commands intentionally follow a review-first flow:
 
 1. Run the create or update command without `--execute`.
 2. Inspect the returned dry-run JSON.

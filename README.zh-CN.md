@@ -5,11 +5,11 @@
 <h1 align="center">confluence-cli</h1>
 
 <p align="center">
-  <strong>面向 Agent 友好的终端 Confluence Cloud 工作流。</strong>
+  <strong>适合 Agent 使用的 Confluence Cloud 终端工作流。</strong>
 </p>
 
 <p align="center">
-  稳定的 JSON 输出、安全的 dry-run 写入、Markdown 到 storage 格式转换，以及面向自动化密集团队的配套 Skills 包。
+  稳定的 JSON 输出、安全的 dry-run 写入、Markdown 到 storage 格式转换，以及适合高自动化团队使用的配套 Skills 包。
 </p>
 
 <p align="center">
@@ -25,10 +25,10 @@
 
 ## 功能概览
 
-`confluence-cli` 是一个小而专注的 Confluence Cloud CLI。它面向需要可预测 Confluence 读取和更安全页面写入的人类用户与 Agent，而不是封装整个 REST API。
+`confluence-cli` 是一个轻量且专注的 Confluence Cloud CLI。它面向需要可预测 Confluence 读取和更安全页面写入的用户与 Agent，而不是封装整个 REST API。
 
-- 为操作命令提供稳定的 JSON 信封。
-- 支持搜索、页面读取、空间列表、页面创建和页面更新。
+- 为操作命令提供稳定的 JSON 响应结构。
+- 支持搜索、读取页面、列出空间、创建页面和更新页面。
 - 写入命令默认 dry-run，只有添加 `--execute` 才会真正写入。
 - 将 Markdown 输入转换为 Confluence storage 格式。
 - 支持原始 Confluence storage XML，以便保留布局或宏。
@@ -50,13 +50,13 @@ curl -fsSL https://raw.githubusercontent.com/laipz8200/confluence-cli/main/insta
 curl -fsSL https://raw.githubusercontent.com/laipz8200/confluence-cli/main/install.sh | CONFLUENCE_CLI_VERSION=0.1.0 sh
 ```
 
-需要本地构建时，可以从源码检出目录安装：
+需要本地构建时，可以从本地源码目录安装：
 
 ```bash
 cargo install --path .
 ```
 
-用于本地开发构建：
+进行本地开发构建：
 
 ```bash
 cargo build --release
@@ -74,7 +74,7 @@ cargo build --release
 npx skills add laipz8200/confluence-cli --skill confluence-cli
 ```
 
-该 skill 会指导 Agent 先使用 dry-run，总结计划写入的内容，并在添加 `--execute` 之前请求明确批准。
+该 skill 会指导 Agent 先运行 dry-run，汇总计划写入的内容，并在添加 `--execute` 之前请求明确批准。
 
 ## 快速开始
 
@@ -84,7 +84,7 @@ npx skills add laipz8200/confluence-cli --skill confluence-cli
 confluence-cli config init
 ```
 
-初始化流程会验证 Confluence API 凭据，按名称列出可访问的空间，并允许你选择一个可选的默认空间。如果没有可访问空间，配置仍会被保存，但不会设置默认空间。
+初始化流程会验证 Confluence API 凭据，按名称列出可访问的空间，并允许你选择是否设置默认空间。如果没有可访问空间，配置仍会被保存，但不会设置默认空间。
 
 列出空间：
 
@@ -104,13 +104,13 @@ confluence-cli search --query "deploy"
 confluence-cli page get --page-id 123456
 ```
 
-安全地草拟一次页面写入：
+安全预览一次页面写入：
 
 ```bash
 confluence-cli page create --space-key ENG --title "Release Notes" --body-file release-notes.md
 ```
 
-上面的 create 命令会返回 dry-run JSON，不会写入 Confluence。只有在审阅 dry-run 输出后才添加 `--execute`。
+上面的 create 命令会返回 dry-run JSON，不会写入 Confluence。请先审阅 dry-run 输出，再添加 `--execute`。
 
 ## 配置
 
@@ -120,17 +120,17 @@ confluence-cli page create --space-key ENG --title "Release Notes" --body-file r
 ~/.config/confluence-cli/config.toml
 ```
 
-也可以为单条命令覆盖配置路径：
+也可以对单条命令覆盖配置路径：
 
 ```bash
 CONFLUENCE_CLI_CONFIG=/path/to/config.toml confluence-cli space list
 ```
 
-API token 会以明文存储。在 Unix 平台上，`confluence-cli` 会用 `0600` 权限写入配置文件。请使用专用 Atlassian API token，并确保配置文件不要进入源码控制。
+API token 会以明文存储。在 Unix 平台上，`confluence-cli` 会用 `0600` 权限写入配置文件。请使用专用 Atlassian API token，并且不要将配置文件提交到源码控制。
 
 `default_space` 是可选项。当配置省略它时，命令会继续把 JSON 输出写入 stdout，并在加载配置时向 stderr 打印警告。
 
-## 命令地图
+## 命令速查
 
 | 命令 | 用途 | 说明 |
 | --- | --- | --- |
@@ -145,18 +145,18 @@ API token 会以明文存储。在 Unix 平台上，`confluence-cli` 会用 `060
 
 ## 安全写入
 
-写入命令有意设计为两步：
+写入命令会先审阅再执行：
 
 1. 不带 `--execute` 运行 create 或 update 命令。
 2. 检查返回的 dry-run JSON。
-3. 只有在批准后，才带上 `--execute` 重新运行同一条命令。
+3. 获得批准后，再带上 `--execute` 重新运行同一条命令。
 
 ```bash
 confluence-cli page update --page-id 123456 --title "Updated Page" --body-file page.md
 confluence-cli page update --page-id 123456 --title "Updated Page" --body-file page.md --execute
 ```
 
-更新要求提供 `--page-id`；该 CLI 不会按标题更新页面。在 update dry-run 期间，CLI 会读取当前页面版本，以便最终写入时使用下一个 Confluence 版本号。
+更新要求提供 `--page-id`；CLI 不会通过标题查找并更新页面。在 update dry-run 期间，CLI 会读取当前页面版本，以便最终写入时使用下一个 Confluence 版本号。
 
 ## 正文格式
 
@@ -175,7 +175,7 @@ Storage 模式会原样发送文件内容。当 Markdown 无法表示页面时�
 
 ## JSON 契约
 
-成功的操作命令会返回稳定信封：
+成功的操作命令会返回稳定的 JSON 响应结构：
 
 ```json
 {
@@ -186,7 +186,7 @@ Storage 模式会原样发送文件内容。当 Markdown 无法表示页面时�
 }
 ```
 
-应用错误会使用相同形状，并带有稳定的错误代码：
+应用错误会使用相同结构，并带有稳定的错误代码：
 
 ```json
 {
@@ -201,7 +201,7 @@ Storage 模式会原样发送文件内容。当 Markdown 无法表示页面时�
 }
 ```
 
-`--help`、`--version` 和 clap 参数解析错误可能会打印普通 CLI 文本。
+`--help`、`--version` 和 clap 参数解析错误可能会打印普通的 CLI 文本。
 
 ## 开发
 
@@ -211,7 +211,7 @@ Storage 模式会原样发送文件内容。当 Markdown 无法表示页面时�
 cargo test --locked
 ```
 
-打开 pull request 前运行 Clippy：
+创建 pull request 前运行 Clippy：
 
 ```bash
 cargo clippy --locked --all-targets --all-features -- -D warnings
