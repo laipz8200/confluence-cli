@@ -1,10 +1,12 @@
+use crate::command_context::CommandContext;
 use crate::error::AppError;
 use clap::Subcommand;
 
-pub mod config;
+mod config_init;
 pub mod page;
-pub mod search;
-pub mod space;
+mod page_get;
+mod search;
+mod space_list;
 
 #[derive(Debug)]
 pub struct CommandOutput {
@@ -48,12 +50,7 @@ pub enum Commands {
         #[command(subcommand)]
         command: SpaceCommand,
     },
-    Search {
-        #[arg(long)]
-        query: Option<String>,
-        #[arg(long)]
-        cql: Option<String>,
-    },
+    Search(search::SearchArgs),
     Page {
         #[command(subcommand)]
         command: PageCommand,
@@ -62,20 +59,17 @@ pub enum Commands {
 
 #[derive(Debug, Subcommand)]
 pub enum ConfigCommand {
-    Init,
+    Init(config_init::ConfigInitArgs),
 }
 
 #[derive(Debug, Subcommand)]
 pub enum SpaceCommand {
-    List,
+    List(space_list::SpaceListArgs),
 }
 
 #[derive(Debug, Subcommand)]
 pub enum PageCommand {
-    Get {
-        #[arg(long)]
-        page_id: String,
-    },
+    Get(page_get::PageGetArgs),
     Create {
         #[arg(long)]
         space_key: String,
@@ -107,25 +101,30 @@ pub enum PageCommand {
 pub async fn dispatch(command: Commands) -> DispatchResult {
     match command {
         Commands::Config {
-            command: ConfigCommand::Init,
-        } => config::init()
-            .map(|data| CommandOutput::new("config.init", false, data))
-            .map_err(|error| CommandFailure::new("config.init", error)),
+            command: ConfigCommand::Init(args),
+        } => config_init::run(args).map_err(to_failure(config_init::COMMAND)),
         Commands::Space {
-            command: SpaceCommand::List,
-        } => space::list()
-            .await
-            .map(|data| CommandOutput::new("space.list", false, data))
-            .map_err(|error| CommandFailure::new("space.list", error)),
-        Commands::Search { query, cql } => search::run(query, cql)
-            .await
-            .map(|data| CommandOutput::new("search", false, data))
-            .map_err(|error| CommandFailure::new("search", error)),
-        Commands::Page { command } => match command {
-            PageCommand::Get { page_id } => page::get(&page_id)
+            command: SpaceCommand::List(args),
+        } => {
+            let ctx = load_context(space_list::COMMAND)?;
+            space_list::run(args, ctx)
                 .await
-                .map(|data| CommandOutput::new("page.get", false, data))
-                .map_err(|error| CommandFailure::new("page.get", error)),
+                .map_err(to_failure(space_list::COMMAND))
+        }
+        Commands::Search(args) => {
+            let cql = args.cql().map_err(to_failure(search::COMMAND))?;
+            let ctx = load_context(search::COMMAND)?;
+            search::run(cql, ctx)
+                .await
+                .map_err(to_failure(search::COMMAND))
+        }
+        Commands::Page { command } => match command {
+            PageCommand::Get(args) => {
+                let ctx = load_context(page_get::COMMAND)?;
+                page_get::run(args, ctx)
+                    .await
+                    .map_err(to_failure(page_get::COMMAND))
+            }
             PageCommand::Create {
                 space_key,
                 title,
@@ -143,17 +142,31 @@ pub async fn dispatch(command: Commands) -> DispatchResult {
             )
             .await
             .map(|(dry_run, data)| CommandOutput::new("page.create", dry_run, data))
-            .map_err(|error| CommandFailure::new("page.create", error)),
+            .map_err(to_failure("page.create")),
             PageCommand::Update {
                 page_id,
                 title,
                 body_file,
                 body_representation,
                 execute,
-            } => page::update(&page_id, &title, &body_file, body_representation, execute)
-                .await
-                .map(|(dry_run, data)| CommandOutput::new("page.update", dry_run, data))
-                .map_err(|error| CommandFailure::new("page.update", error)),
+            } => page::update(
+                &page_id,
+                &title,
+                &body_file,
+                body_representation,
+                execute,
+            )
+            .await
+            .map(|(dry_run, data)| CommandOutput::new("page.update", dry_run, data))
+            .map_err(to_failure("page.update")),
         },
     }
+}
+
+fn load_context(command: &'static str) -> Result<CommandContext, CommandFailure> {
+    CommandContext::load().map_err(|error| CommandFailure::new(command, error))
+}
+
+fn to_failure(command: &'static str) -> impl FnOnce(AppError) -> CommandFailure {
+    move |error| CommandFailure::new(command, error)
 }

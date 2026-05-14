@@ -14,19 +14,6 @@ pub enum BodyRepresentation {
     Storage,
 }
 
-pub async fn get(page_id: &str) -> Result<Value, AppError> {
-    let config = load_default_config()?;
-    let client = ConfluenceClient::new(config)?;
-    let page = client.get_page(page_id).await?;
-
-    serde_json::to_value(page).map_err(|source| {
-        AppError::new(
-            ErrorCode::InternalError,
-            format!("Failed to serialize page JSON: {source}"),
-        )
-    })
-}
-
 pub async fn create(
     space_key: &str,
     title: &str,

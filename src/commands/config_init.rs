@@ -1,9 +1,16 @@
+use crate::commands::{CommandOutput, CommandResult};
 use crate::config::{config_path, save_config, Config};
 use crate::error::AppError;
+use clap::Args;
 use serde_json::json;
 use std::io::{self, Write};
 
-pub fn init() -> Result<serde_json::Value, AppError> {
+pub const COMMAND: &str = "config.init";
+
+#[derive(Debug, Args)]
+pub struct ConfigInitArgs {}
+
+pub fn run(_args: ConfigInitArgs) -> CommandResult {
     let site_url = prompt("Confluence site URL")?;
     let email = prompt("Email")?;
     let api_token = read_api_token()?;
@@ -18,12 +25,16 @@ pub fn init() -> Result<serde_json::Value, AppError> {
     let path = config_path()?;
     save_config(&path, &config)?;
 
-    Ok(json!({
-        "path": path,
-        "site_url": config.site_url.trim_end_matches('/'),
-        "email": config.email,
-        "default_space": config.default_space
-    }))
+    Ok(CommandOutput::new(
+        COMMAND,
+        false,
+        json!({
+            "path": path,
+            "site_url": config.site_url.trim_end_matches('/'),
+            "email": config.email,
+            "default_space": config.default_space
+        }),
+    ))
 }
 
 fn prompt(label: &str) -> Result<String, AppError> {
