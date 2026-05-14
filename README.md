@@ -36,7 +36,22 @@
 
 ## Install
 
-Install from a source checkout:
+Install the latest release binary:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/laipz8200/confluence-cli/main/install.sh | sh
+```
+
+The installer supports Linux x86_64, Linux arm64, macOS x86_64, and macOS arm64
+release artifacts. It installs to `~/.local/bin` by default. Override the
+install directory or version with environment variables:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/laipz8200/confluence-cli/main/install.sh | CONFLUENCE_CLI_INSTALL_DIR=/usr/local/bin sh
+curl -fsSL https://raw.githubusercontent.com/laipz8200/confluence-cli/main/install.sh | CONFLUENCE_CLI_VERSION=0.1.0 sh
+```
+
+Install from a source checkout when you need a local build:
 
 ```bash
 cargo install --path .
