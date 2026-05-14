@@ -120,7 +120,8 @@ a {
 
 .hero__inner,
 .install__inner {
-  width: min(100%, 56rem);
+  width: min(56rem, calc(100vw - 2.5rem));
+  max-width: 100%;
   margin: 0 auto;
 }
 
@@ -266,6 +267,8 @@ h2 {
 }
 
 .terminal {
+  width: 100%;
+  max-width: 100%;
   margin: 2rem 0 0;
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -317,7 +320,65 @@ h2 {
   text-align: center;
 }
 
+.terminal__copy {
+  display: inline-flex;
+  justify-self: end;
+  min-width: 5.75rem;
+  min-height: 2rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border: 1px solid rgba(226, 232, 240, 0.18);
+  border-radius: 8px;
+  padding: 0.4rem 0.7rem;
+  background: rgba(15, 23, 42, 0.72);
+  color: #e2e8f0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.terminal__copy:hover {
+  border-color: rgba(45, 212, 191, 0.55);
+  background: rgba(17, 24, 39, 0.94);
+  transform: translateY(-1px);
+}
+
+.terminal__copy:focus-visible {
+  outline: 3px solid rgba(45, 212, 191, 0.55);
+  outline-offset: 3px;
+}
+
+.terminal__copy[data-copy-state="copied"] {
+  border-color: rgba(163, 230, 53, 0.52);
+  color: var(--green);
+}
+
+.terminal__copy[data-copy-state="failed"] {
+  border-color: rgba(249, 115, 22, 0.62);
+  color: #fed7aa;
+}
+
+.terminal__copy-icon {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+}
+
+.terminal__copy-label {
+  min-width: 3.1rem;
+  text-align: left;
+}
+
 .terminal__body {
+  max-width: 100%;
   margin: 0;
   overflow-x: auto;
   background:
@@ -328,6 +389,8 @@ h2 {
 
 code {
   display: block;
+  width: max-content;
+  min-width: 100%;
   padding: 1.35rem 1.5rem 1.5rem;
   color: #e2e8f0;
   font-family:
@@ -425,9 +488,36 @@ code {
   }
 }
 
+@media (max-width: 480px) {
+  .terminal__chrome {
+    gap: 0.75rem;
+  }
+
+  .terminal__title {
+    overflow: hidden;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .terminal__copy {
+    min-width: 5.35rem;
+    padding-inline: 0.6rem;
+  }
+}
+
 @media (max-width: 380px) {
   h1 {
     font-size: 2.25rem;
+  }
+
+  .terminal__title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 }
 

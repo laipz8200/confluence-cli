@@ -93,7 +93,7 @@
       <section class="install" id="install" aria-labelledby="install-title">
         <div class="install__inner">
           <p class="section-label">Install</p>
-          <h2 id="install-title">Clone, install, and configure.</h2>
+          <h2 id="install-title">Install the latest release.</h2>
           <div class="terminal" role="region" aria-label="Installation commands">
             <div class="terminal__chrome">
               <div class="terminal__controls" aria-hidden="true">
@@ -102,14 +102,106 @@
                 <span class="terminal__control terminal__control--green"></span>
               </div>
               <p class="terminal__title">confluence-cli install</p>
+              <button
+                class="terminal__copy"
+                type="button"
+                data-copy-command
+                data-command="curl -fsSL https://raw.githubusercontent.com/laipz8200/confluence-cli/main/install.sh | sh"
+                aria-label="Copy install command"
+              >
+                <svg
+                  aria-hidden="true"
+                  class="terminal__copy-icon"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                >
+                  <path
+                    d="M8 8.5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2z"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <path
+                    d="M4 13.5v-8a2 2 0 0 1 2-2h8"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+                <span class="terminal__copy-label" aria-live="polite">Copy</span>
+              </button>
             </div>
-            <pre class="terminal__body"><code><span class="terminal__prompt">$</span> git clone https://github.com/laipz8200/confluence-cli.git
-<span class="terminal__prompt">$</span> cd confluence-cli
-<span class="terminal__prompt">$</span> cargo install --path .
-<span class="terminal__prompt">$</span> confluence-cli config init</code></pre>
+            <pre class="terminal__body"><code><span class="terminal__prompt">$</span> curl -fsSL https://raw.githubusercontent.com/laipz8200/confluence-cli/main/install.sh | sh</code></pre>
           </div>
         </div>
       </section>
     </main>
+    <script>
+      (() => {
+        const copyButton = document.querySelector("[data-copy-command]");
+        const copyLabel = copyButton?.querySelector(".terminal__copy-label");
+        const command = copyButton?.dataset.command;
+
+        if (!copyButton || !copyLabel || !command) {
+          return;
+        }
+
+        const setCopyLabel = (label, state = "idle") => {
+          copyLabel.textContent = label;
+          copyButton.dataset.copyState = state;
+          window.clearTimeout(copyButton.copyReset);
+
+          if (state !== "idle") {
+            copyButton.copyReset = window.setTimeout(() => {
+              copyLabel.textContent = "Copy";
+              copyButton.dataset.copyState = "idle";
+            }, 1800);
+          }
+        };
+
+        const fallbackCopy = () => {
+          const textarea = document.createElement("textarea");
+          textarea.value = command;
+          textarea.setAttribute("readonly", "");
+          textarea.style.position = "fixed";
+          textarea.style.inset = "0 auto auto 0";
+          textarea.style.opacity = "0";
+          document.body.append(textarea);
+          textarea.focus({ preventScroll: true });
+          textarea.select();
+          textarea.setSelectionRange(0, textarea.value.length);
+
+          const copied =
+            typeof document.execCommand === "function" &&
+            document.execCommand("copy");
+          textarea.remove();
+
+          if (!copied) {
+            throw new Error("Copy command failed");
+          }
+        };
+
+        copyButton.addEventListener("click", async () => {
+          try {
+            if (window.navigator?.clipboard?.writeText) {
+              await window.navigator.clipboard.writeText(command);
+            } else {
+              fallbackCopy();
+            }
+
+            setCopyLabel("Copied", "copied");
+          } catch {
+            try {
+              fallbackCopy();
+              setCopyLabel("Copied", "copied");
+            } catch {
+              setCopyLabel("Failed", "failed");
+            }
+          }
+        });
+      })();
+    </script>
   </body>
 </html>
