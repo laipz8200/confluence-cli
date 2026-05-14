@@ -5,6 +5,8 @@ use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
 pub struct ConvertedContent {
     pub storage_html: String,
     pub markdown_bytes: usize,
+    pub source_bytes: usize,
+    pub source_representation: &'static str,
     pub storage_html_bytes: usize,
     pub headings: Vec<String>,
 }
@@ -18,9 +20,22 @@ pub fn markdown_to_storage(markdown: &str) -> Result<ConvertedContent, AppError>
 
     Ok(ConvertedContent {
         markdown_bytes: markdown.len(),
+        source_bytes: markdown.len(),
+        source_representation: "markdown",
         storage_html_bytes: html.len(),
         headings: collect_headings(markdown),
         storage_html: html,
+    })
+}
+
+pub fn storage_to_storage(storage: &str) -> Result<ConvertedContent, AppError> {
+    Ok(ConvertedContent {
+        storage_html: storage.to_string(),
+        markdown_bytes: 0,
+        source_bytes: storage.len(),
+        source_representation: "storage",
+        storage_html_bytes: storage.len(),
+        headings: Vec::new(),
     })
 }
 

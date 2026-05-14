@@ -65,10 +65,22 @@ Create dry-run:
 confluence-cli page create --space-key ENG --title "New Page" --body-file page.md
 ```
 
+Create dry-run with raw Confluence storage XML:
+
+```bash
+confluence-cli page create --space-key ENG --title "New Page" --body-file page.storage.xml
+```
+
 Update dry-run:
 
 ```bash
 confluence-cli page update --page-id 123456 --title "Updated Page" --body-file page.md
+```
+
+Update dry-run with raw Confluence storage XML:
+
+```bash
+confluence-cli page update --page-id 123456 --title "Updated Page" --body-file page.storage.xml
 ```
 
 Only add `--execute` after you have run the dry-run, inspected the dry-run JSON, shown or summarized that dry-run result to the user, and the user explicitly approves that execution.
@@ -79,11 +91,25 @@ Create execute:
 confluence-cli page create --space-key ENG --title "New Page" --body-file page.md --execute
 ```
 
+Create execute with raw Confluence storage XML:
+
+```bash
+confluence-cli page create --space-key ENG --title "New Page" --body-file page.storage.xml --execute
+```
+
 Update execute:
 
 ```bash
 confluence-cli page update --page-id 123456 --title "Updated Page" --body-file page.md --execute
 ```
+
+Update execute with raw Confluence storage XML:
+
+```bash
+confluence-cli page update --page-id 123456 --title "Updated Page" --body-file page.storage.xml --execute
+```
+
+Body representation is inferred from the body file name. Files ending in `.storage`, `.storage.xml`, or `.xml` are sent as raw Confluence storage XML. Other files are treated as Markdown. Use `--body-representation storage` or `--body-representation markdown` only when you need to override inference for a non-standard file name.
 
 ## Output Rules
 
@@ -101,4 +127,5 @@ Successful operational subcommands print JSON, and app-level validation or API e
 - Do not add `--execute` unless the dry-run has been run, its JSON has been inspected and shown or summarized to the user, and the user explicitly approves that execution.
 - Do not update pages by title.
 - Do not create direct Confluence REST calls to bypass the CLI.
+- In storage mode, treat the body file as authoritative Confluence storage XML and rely on Confluence's API validation.
 - If `ok` is false, report `error.code` and `error.message` to the user.

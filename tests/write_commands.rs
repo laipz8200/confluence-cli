@@ -3,7 +3,7 @@ use serde_json::json;
 use serde_json::Value;
 use std::path::Path;
 use tempfile::TempDir;
-use wiremock::matchers::{method, path, query_param};
+use wiremock::matchers::{body_string, method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 fn write_config(dir: &Path, site_url: &str) {
@@ -221,6 +221,124 @@ async fn page_update_execute_reads_version_then_puts_next_version() {
     assert_eq!(stdout["command"], "page.update");
     assert_eq!(stdout["dry_run"], false);
     assert_eq!(stdout["data"]["id"], "456");
+}
+
+#[tokio::test]
+async fn page_update_execute_infers_storage_representation_from_file_extension() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v2/pages/456"))
+        .and(query_param("body-format", "storage"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "id": "456",
+            "status": "current",
+            "title": "Old Page",
+            "version": {"number": 7}
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("PUT"))
+        .and(path("/api/v2/pages/456"))
+        .and(body_string(
+            r#"{"id":"456","status":"current","title":"Updated Page","body":{"representation":"storage","value":"<ac:structured-macro ac:name=\"recently-updated\" ac:schema-version=\"1\"><ac:parameter ac:name=\"max\">5</ac:parameter></ac:structured-macro>"},"version":{"number":8,"message":"Updated by confluence-cli"}}"#,
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "id": "456",
+            "title": "Updated Page",
+            "version": {"number": 8}
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let dir = TempDir::new().unwrap();
+    write_config(dir.path(), &server.uri());
+    let body_file = dir.path().join("body.storage.xml");
+    std::fs::write(
+        &body_file,
+        r#"<ac:structured-macro ac:name="recently-updated" ac:schema-version="1"><ac:parameter ac:name="max">5</ac:parameter></ac:structured-macro>"#,
+    )
+    .unwrap();
+
+    let mut cmd = Command::cargo_bin("confluence-cli").unwrap();
+    let output = cmd
+        .env("CONFLUENCE_CLI_CONFIG", dir.path().join("config.toml"))
+        .args([
+            "page",
+            "update",
+            "--page-id",
+            "456",
+            "--title",
+            "Updated Page",
+            "--body-file",
+        ])
+        .arg(&body_file)
+        .args(["--execute"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let stdout: Value = serde_json::from_slice(&output).unwrap();
+
+    assert_eq!(stdout["ok"], true);
+    assert_eq!(stdout["command"], "page.update");
+    assert_eq!(stdout["dry_run"], false);
+    assert_eq!(stdout["data"]["id"], "456");
+}
+
+#[tokio::test]
+async fn page_update_storage_representation_option_overrides_file_extension() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v2/pages/456"))
+        .and(query_param("body-format", "storage"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "id": "456",
+            "status": "current",
+            "title": "Old Page",
+            "version": {"number": 7}
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let dir = TempDir::new().unwrap();
+    write_config(dir.path(), &server.uri());
+    let body_file = dir.path().join("body.txt");
+    std::fs::write(
+        &body_file,
+        r#"<ac:structured-macro ac:name="recently-updated" ac:schema-version="1"><ac:parameter ac:name="max">5</ac:parameter></ac:structured-macro>"#,
+    )
+    .unwrap();
+
+    let mut cmd = Command::cargo_bin("confluence-cli").unwrap();
+    let output = cmd
+        .env("CONFLUENCE_CLI_CONFIG", dir.path().join("config.toml"))
+        .args([
+            "page",
+            "update",
+            "--page-id",
+            "456",
+            "--title",
+            "Updated Page",
+            "--body-file",
+        ])
+        .arg(&body_file)
+        .args(["--body-representation", "storage"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let stdout: Value = serde_json::from_slice(&output).unwrap();
+
+    assert_eq!(stdout["ok"], true);
+    assert_eq!(stdout["command"], "page.update");
+    assert_eq!(stdout["dry_run"], true);
+    assert_eq!(
+        stdout["data"]["body"]["summary"]["source_representation"],
+        "storage"
+    );
 }
 
 #[tokio::test]
