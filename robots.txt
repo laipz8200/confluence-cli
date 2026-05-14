@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://laipz8200.github.io/confluence-cli/sitemap.xml
