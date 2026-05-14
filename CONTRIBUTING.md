@@ -1,5 +1,19 @@
 # Contributing
 
+## Quality Checks
+
+Run Clippy before opening a pull request:
+
+```bash
+cargo clippy --locked --all-targets --all-features -- -D warnings
+```
+
+Run the test suite as well:
+
+```bash
+cargo test --locked
+```
+
 ## Pull Requests
 
 Use a semantic title for every pull request. The title must follow the
