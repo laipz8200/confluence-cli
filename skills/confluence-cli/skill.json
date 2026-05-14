@@ -1,6 +1,6 @@
 {
   "name": "confluence-cli",
   "version": "0.1.0",
-  "description": "Use confluence-cli to search, read, create, and update Confluence Cloud pages with safe dry-run writes.",
+  "description": "Use confluence-cli for Confluence Cloud spaces, text or CQL search, page reads, safe page creation or updates, Markdown body files, and storage XML when needed.",
   "entry": "SKILL.md"
 }
