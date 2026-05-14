@@ -66,6 +66,8 @@ cargo build --release
 
 如果你正在使用 Agent，`confluence-cli config init` 会在保存配置后询问是否安装配套 Skills 包。按 Enter 安装，或输入 `n` 跳过。
 
+`config init` 内置安装流程会运行下方同样的 `npx skills add ...` 命令，因此需要本机 `PATH` 中可用 `npx`。
+
 手动安装或重新安装：
 
 ```bash
