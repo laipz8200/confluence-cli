@@ -3,6 +3,9 @@ use crate::commands::{CommandOutput, CommandResult};
 use crate::config::{config_path, save_config, Config};
 use crate::error::{AppError, ErrorCode};
 use clap::Args;
+use std::env;
+use std::ffi::OsString;
+use std::fs;
 use std::io::{self, IsTerminal, Write};
 use std::path::Path;
 use std::process::Command;
@@ -19,8 +22,9 @@ const SKILLS_INSTALL_ARGS: [&str; 5] = [
 const ANSI_RESET: &str = "\u{1b}[0m";
 const ANSI_BOLD: &str = "\u{1b}[1m";
 const ANSI_DIM: &str = "\u{1b}[2m";
+const ANSI_RED: &str = "\u{1b}[31m";
 const ANSI_GREEN: &str = "\u{1b}[32m";
-const ANSI_CYAN: &str = "\u{1b}[36m";
+const ANSI_BLUE: &str = "\u{1b}[34m";
 
 #[derive(Debug, Args)]
 pub struct ConfigInitArgs {}
@@ -54,6 +58,8 @@ pub async fn run(_args: ConfigInitArgs) -> CommandResult {
     );
     if skills_install == SkillsInstallOutcome::Installed {
         message.push_str("\nAgent Skills package installed.");
+    } else if skills_install == SkillsInstallOutcome::Failed {
+        message.push_str("\nAgent Skills package skipped: `npx` is not available on PATH.");
     }
 
     Ok(CommandOutput::text(COMMAND, message))
@@ -200,6 +206,7 @@ fn choose_default_space(spaces: &[Space]) -> Result<Option<String>, AppError> {
 enum SkillsInstallOutcome {
     Installed,
     Skipped,
+    Failed,
 }
 
 fn prompt_and_install_skills() -> Result<SkillsInstallOutcome, AppError> {
@@ -212,6 +219,7 @@ fn prompt_and_install_skills() -> Result<SkillsInstallOutcome, AppError> {
     prompt_and_install_skills_with_io_and_display(
         &mut input,
         &mut prompt_output,
+        program_available,
         run_skills_install_command,
         display_mode,
     )
@@ -223,22 +231,55 @@ fn prompt_and_install_skills_with_io(
     prompt_output: &mut impl Write,
     mut installer: impl FnMut(&str, &[&str]) -> Result<(), AppError>,
 ) -> Result<SkillsInstallOutcome, AppError> {
+    prompt_and_install_skills_with_io_and_program_checker(
+        input,
+        prompt_output,
+        |_| true,
+        &mut installer,
+        PromptDisplayMode::Plain,
+    )
+}
+
+#[cfg(test)]
+fn prompt_and_install_skills_with_io_and_program_checker(
+    input: &mut impl io::BufRead,
+    prompt_output: &mut impl Write,
+    program_available: impl FnMut(&str) -> bool,
+    installer: impl FnMut(&str, &[&str]) -> Result<(), AppError>,
+    display_mode: PromptDisplayMode,
+) -> Result<SkillsInstallOutcome, AppError> {
     prompt_and_install_skills_with_io_and_display(
         input,
         prompt_output,
-        &mut installer,
-        PromptDisplayMode::Plain,
+        program_available,
+        installer,
+        display_mode,
     )
 }
 
 fn prompt_and_install_skills_with_io_and_display(
     input: &mut impl io::BufRead,
     prompt_output: &mut impl Write,
+    mut program_available: impl FnMut(&str) -> bool,
     mut installer: impl FnMut(&str, &[&str]) -> Result<(), AppError>,
     display_mode: PromptDisplayMode,
 ) -> Result<SkillsInstallOutcome, AppError> {
     if display_mode == PromptDisplayMode::Dynamic {
-        return prompt_and_install_skills_dynamic(input, prompt_output, installer);
+        return prompt_and_install_skills_dynamic(
+            input,
+            prompt_output,
+            program_available,
+            installer,
+        );
+    }
+
+    if !program_available(SKILLS_INSTALL_PROGRAM) {
+        writeln!(
+            prompt_output,
+            "Agent Skills package skipped: `{SKILLS_INSTALL_PROGRAM}` is not available on PATH."
+        )
+        .map_err(prompt_write_error)?;
+        return Ok(SkillsInstallOutcome::Failed);
     }
 
     loop {
@@ -283,12 +324,19 @@ fn prompt_and_install_skills_with_io_and_display(
 fn prompt_and_install_skills_dynamic(
     input: &mut impl io::BufRead,
     prompt_output: &mut impl Write,
+    mut program_available: impl FnMut(&str) -> bool,
     mut installer: impl FnMut(&str, &[&str]) -> Result<(), AppError>,
 ) -> Result<SkillsInstallOutcome, AppError> {
     let step = ConfigInitStep::agent_skills();
     let mut error_rendered = false;
 
     render_step_active(step, prompt_output)?;
+    if !program_available(SKILLS_INSTALL_PROGRAM) {
+        clear_rendered_lines(prompt_output, 1)?;
+        render_step_failed(step, prompt_output)?;
+        return Ok(SkillsInstallOutcome::Failed);
+    }
+
     loop {
         write!(
             prompt_output,
@@ -372,6 +420,72 @@ fn skills_install_command() -> String {
         SKILLS_INSTALL_PROGRAM,
         SKILLS_INSTALL_ARGS.join(" ")
     )
+}
+
+fn program_available(program: &str) -> bool {
+    let program_path = Path::new(program);
+    if program_path.components().count() > 1 {
+        return is_executable_file(program_path);
+    }
+
+    let Some(paths) = env::var_os("PATH") else {
+        return false;
+    };
+    let candidates = program_name_candidates(program);
+    env::split_paths(&paths).any(|dir| {
+        candidates
+            .iter()
+            .any(|candidate| is_executable_file(&dir.join(candidate)))
+    })
+}
+
+fn program_name_candidates(program: &str) -> Vec<OsString> {
+    #[cfg(windows)]
+    {
+        if Path::new(program).extension().is_some() {
+            return vec![OsString::from(program)];
+        }
+
+        let pathext =
+            env::var_os("PATHEXT").unwrap_or_else(|| OsString::from(".COM;.EXE;.BAT;.CMD"));
+        let candidates = pathext
+            .to_string_lossy()
+            .split(';')
+            .filter(|extension| !extension.is_empty())
+            .map(|extension| OsString::from(format!("{program}{extension}")))
+            .collect::<Vec<_>>();
+
+        if candidates.is_empty() {
+            vec![OsString::from(program)]
+        } else {
+            candidates
+        }
+    }
+
+    #[cfg(not(windows))]
+    {
+        vec![OsString::from(program)]
+    }
+}
+
+fn is_executable_file(path: &Path) -> bool {
+    let Ok(metadata) = fs::metadata(path) else {
+        return false;
+    };
+    if !metadata.is_file() {
+        return false;
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        metadata.permissions().mode() & 0o111 != 0
+    }
+
+    #[cfg(not(unix))]
+    {
+        true
+    }
 }
 
 fn after_config_save_error(mut error: AppError, path: &Path) -> AppError {
@@ -587,7 +701,7 @@ fn render_step_active(
 ) -> Result<(), AppError> {
     writeln!(
         prompt_output,
-        "{ANSI_CYAN}●{ANSI_RESET} {ANSI_BOLD}{}. {}{ANSI_RESET}",
+        "{ANSI_BLUE}●{ANSI_RESET} {ANSI_BOLD}{}. {}{ANSI_RESET}",
         step.number, step.label
     )
     .map_err(prompt_write_error)?;
@@ -601,6 +715,22 @@ fn render_step_complete(
     writeln!(
         prompt_output,
         "{ANSI_GREEN}✔{ANSI_RESET} {ANSI_DIM}{}.{ANSI_RESET} {}",
+        step.number, step.label
+    )
+    .map_err(prompt_write_error)?;
+    if step.connect_after {
+        writeln!(prompt_output, "{ANSI_DIM}│{ANSI_RESET}").map_err(prompt_write_error)?;
+    }
+    flush_prompt_output(prompt_output)
+}
+
+fn render_step_failed(
+    step: ConfigInitStep,
+    prompt_output: &mut impl Write,
+) -> Result<(), AppError> {
+    writeln!(
+        prompt_output,
+        "{ANSI_RED}✘{ANSI_RESET} {ANSI_DIM}{}.{ANSI_RESET} {}",
         step.number, step.label
     )
     .map_err(prompt_write_error)?;
@@ -682,7 +812,7 @@ mod tests {
         assert_eq!(
             String::from_utf8(prompt_output).unwrap(),
             concat!(
-                "\u{1b}[36m●\u{1b}[0m \u{1b}[1m1. Confluence site URL\u{1b}[0m\n",
+                "\u{1b}[34m●\u{1b}[0m \u{1b}[1m1. Confluence site URL\u{1b}[0m\n",
                 "  \u{1b}[2mConfluence site URL:\u{1b}[0m ",
                 "\u{1b}[1A\u{1b}[2K\u{1b}[1A\u{1b}[2K",
                 "\u{1b}[32m✔\u{1b}[0m \u{1b}[2m1.\u{1b}[0m Confluence site URL\n",
@@ -763,7 +893,7 @@ mod tests {
         assert_eq!(
             String::from_utf8(prompt_output).unwrap(),
             concat!(
-                "\u{1b}[36m●\u{1b}[0m \u{1b}[1m4. Default space\u{1b}[0m\n",
+                "\u{1b}[34m●\u{1b}[0m \u{1b}[1m4. Default space\u{1b}[0m\n",
                 "  \u{1b}[2mAccessible spaces\u{1b}[0m\n",
                 "    \u{1b}[2m1.\u{1b}[0m Engineering \u{1b}[2m(ENG)\u{1b}[0m\n",
                 "    \u{1b}[2m2.\u{1b}[0m Documentation \u{1b}[2m(DOCS)\u{1b}[0m\n",
@@ -839,5 +969,51 @@ mod tests {
             .unwrap();
 
         assert_eq!(outcome, super::SkillsInstallOutcome::Skipped);
+    }
+
+    #[test]
+    fn skills_install_auto_fails_when_npx_is_unavailable_plain_display() {
+        let mut input = "\n".as_bytes();
+        let mut prompt_output = Vec::new();
+
+        let outcome = super::prompt_and_install_skills_with_io_and_program_checker(
+            &mut input,
+            &mut prompt_output,
+            |_| false,
+            |_, _| panic!("installer should not run when npx is unavailable"),
+            super::PromptDisplayMode::Plain,
+        )
+        .unwrap();
+
+        assert_eq!(outcome, super::SkillsInstallOutcome::Failed);
+        let prompt = String::from_utf8(prompt_output).unwrap();
+        assert!(prompt.contains("npx"));
+        assert!(prompt.contains("not available"));
+        assert!(!prompt.contains("[Y/n]"));
+    }
+
+    #[test]
+    fn skills_install_dynamic_display_marks_step_failed_when_npx_is_unavailable() {
+        let mut input = "\n".as_bytes();
+        let mut prompt_output = Vec::new();
+
+        let outcome = super::prompt_and_install_skills_with_io_and_program_checker(
+            &mut input,
+            &mut prompt_output,
+            |_| false,
+            |_, _| panic!("installer should not run when npx is unavailable"),
+            super::PromptDisplayMode::Dynamic,
+        )
+        .unwrap();
+
+        assert_eq!(outcome, super::SkillsInstallOutcome::Failed);
+        assert_eq!(
+            String::from_utf8(prompt_output).unwrap(),
+            concat!(
+                "\u{1b}[34m●\u{1b}[0m \u{1b}[1m5. Agent Skills package\u{1b}[0m\n",
+                "\u{1b}[1A\u{1b}[2K",
+                "\u{1b}[31m✘\u{1b}[0m \u{1b}[2m5.\u{1b}[0m Agent Skills package\n",
+            )
+        );
     }
 }

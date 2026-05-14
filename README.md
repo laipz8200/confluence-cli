@@ -67,7 +67,7 @@ cargo build --release
 
 If you are using an Agent, `confluence-cli config init` asks whether to install the companion Skills package after saving your config. Press Enter to install it, or enter `n` to skip.
 
-The `config init` installer runs the same `npx skills add ...` command shown below, so `npx` must be available on your `PATH`.
+The `config init` installer runs the same `npx skills add ...` command shown below. If `npx` is not available on your `PATH`, this step is marked failed and skipped while the saved config remains usable.
 
 To install or reinstall it manually:
 
