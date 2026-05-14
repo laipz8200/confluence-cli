@@ -15,6 +15,7 @@ pub struct CommandOutput {
     pub command: &'static str,
     pub dry_run: bool,
     pub data: serde_json::Value,
+    pub text: Option<String>,
 }
 
 impl CommandOutput {
@@ -23,6 +24,16 @@ impl CommandOutput {
             command,
             dry_run,
             data,
+            text: None,
+        }
+    }
+
+    pub fn text(command: &'static str, text: impl Into<String>) -> Self {
+        Self {
+            command,
+            dry_run: false,
+            data: serde_json::Value::Null,
+            text: Some(text.into()),
         }
     }
 }
@@ -80,7 +91,9 @@ pub async fn dispatch(command: Commands) -> DispatchResult {
     match command {
         Commands::Config {
             command: ConfigCommand::Init(args),
-        } => config_init::run(args).map_err(to_failure(config_init::COMMAND)),
+        } => config_init::run(args)
+            .await
+            .map_err(to_failure(config_init::COMMAND)),
         Commands::Space {
             command: SpaceCommand::List(args),
         } => {

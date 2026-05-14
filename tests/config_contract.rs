@@ -61,7 +61,7 @@ fn config_round_trip_trims_site_url_slash() {
         site_url: "https://example.atlassian.net/wiki/".to_string(),
         email: "user@example.com".to_string(),
         api_token: "token-value".to_string(),
-        default_space: "ENG".to_string(),
+        default_space: Some("ENG".to_string()),
     };
 
     save_config(&path, &config).unwrap();
@@ -70,8 +70,29 @@ fn config_round_trip_trims_site_url_slash() {
     assert_eq!(loaded.site_url, "https://example.atlassian.net/wiki");
     assert_eq!(loaded.email, "user@example.com");
     assert_eq!(loaded.api_token, "token-value");
-    assert_eq!(loaded.default_space, "ENG");
+    assert_eq!(loaded.default_space.as_deref(), Some("ENG"));
     assert!(fs::metadata(path).unwrap().len() > 0);
+}
+
+#[test]
+fn config_allows_missing_default_space() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    fs::write(
+        &path,
+        r#"
+site_url = "https://example.atlassian.net/wiki"
+email = "user@example.com"
+api_token = "token-value"
+"#,
+    )
+    .unwrap();
+
+    let loaded = load_config(&path).unwrap();
+
+    assert_eq!(loaded.site_url, "https://example.atlassian.net/wiki");
+    assert_eq!(loaded.email, "user@example.com");
+    assert_eq!(loaded.api_token, "token-value");
 }
 
 #[test]
@@ -91,7 +112,7 @@ fn config_rejects_non_loopback_http_site_url() {
         site_url: "http://example.atlassian.net/wiki".to_string(),
         email: "user@example.com".to_string(),
         api_token: "token-value".to_string(),
-        default_space: "ENG".to_string(),
+        default_space: Some("ENG".to_string()),
     };
 
     let error = config.validate().unwrap_err();
@@ -106,7 +127,7 @@ fn config_allows_loopback_http_for_mock_servers() {
         site_url: "http://127.0.0.1:12345/wiki/".to_string(),
         email: "user@example.com".to_string(),
         api_token: "token-value".to_string(),
-        default_space: "ENG".to_string(),
+        default_space: Some("ENG".to_string()),
     };
 
     let validated = config.validate().unwrap();
@@ -133,7 +154,7 @@ async fn command_context_loads_client_from_config_env_var() {
         site_url: server.uri(),
         email: "user@example.com".to_string(),
         api_token: "token-value".to_string(),
-        default_space: "ENG".to_string(),
+        default_space: Some("ENG".to_string()),
     };
     save_config(&path, &config).unwrap();
 
@@ -157,11 +178,22 @@ fn redacted_token_never_returns_secret() {
     assert_eq!(redacted_token("abcdef"), "[redacted]");
 }
 
-#[test]
-fn config_init_accepts_piped_stdin_and_keeps_stdout_json_only() {
-    let _lock = ENV_LOCK
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
+#[tokio::test]
+async fn config_init_lists_spaces_and_selects_default_by_number() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v2/spaces"))
+        .and(query_param("limit", "25"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "results": [
+                {"id": "space-eng", "key": "ENG", "name": "Engineering"},
+                {"id": "space-docs", "key": "DOCS", "name": "Documentation"}
+            ],
+            "_links": {}
+        })))
+        .mount(&server)
+        .await;
+
     let dir = tempdir().unwrap();
     let path = dir.path().join("config.toml");
 
@@ -170,7 +202,156 @@ fn config_init_accepts_piped_stdin_and_keeps_stdout_json_only() {
         .arg("config")
         .arg("init")
         .env("CONFLUENCE_CLI_CONFIG", &path)
-        .write_stdin("https://example.atlassian.net/wiki/\nuser@example.com\ntoken-value\nENG\n")
+        .write_stdin(format!(
+            "{}/\nuser@example.com\ntoken-value\n1\n",
+            server.uri()
+        ))
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(serde_json::from_str::<serde_json::Value>(&stdout).is_err());
+    assert!(stdout.contains("Congratulations"));
+    assert!(stdout.contains("setup is complete"));
+    assert!(stdout.contains(path.to_str().unwrap()));
+    assert!(!stdout.contains("token-value"));
+    assert!(stderr.contains("Confluence site URL"));
+    assert!(stderr.contains("Email"));
+    assert!(stderr.contains("API token"));
+    assert!(stderr.contains("Engineering"));
+    assert!(stderr.contains("Documentation"));
+
+    let loaded = load_config(&path).unwrap();
+    assert_eq!(loaded.site_url, server.uri());
+    assert_eq!(loaded.email, "user@example.com");
+    assert_eq!(loaded.api_token, "token-value");
+    assert_eq!(loaded.default_space.as_deref(), Some("ENG"));
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+    }
+}
+
+#[tokio::test]
+async fn config_init_allows_no_spaces_without_default_space() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v2/spaces"))
+        .and(query_param("limit", "25"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "results": [],
+            "_links": {}
+        })))
+        .mount(&server)
+        .await;
+
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+
+    let output = Command::cargo_bin("confluence-cli")
+        .unwrap()
+        .arg("config")
+        .arg("init")
+        .env("CONFLUENCE_CLI_CONFIG", &path)
+        .write_stdin(format!(
+            "{}/\nuser@example.com\ntoken-value\n",
+            server.uri()
+        ))
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    let written = fs::read_to_string(&path).unwrap();
+
+    assert!(serde_json::from_str::<serde_json::Value>(&stdout).is_err());
+    assert!(stdout.contains("Congratulations"));
+    assert!(stdout.contains(path.to_str().unwrap()));
+    assert!(stderr.contains("No accessible spaces"));
+    assert!(!written.contains("default_space"));
+}
+
+#[tokio::test]
+async fn config_init_exits_without_writing_config_when_api_verification_fails() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v2/spaces"))
+        .and(query_param("limit", "25"))
+        .respond_with(ResponseTemplate::new(401).set_body_string("bad credentials"))
+        .mount(&server)
+        .await;
+
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+
+    let output = Command::cargo_bin("confluence-cli")
+        .unwrap()
+        .arg("config")
+        .arg("init")
+        .env("CONFLUENCE_CLI_CONFIG", &path)
+        .write_stdin(format!(
+            "{}/\nuser@example.com\ntoken-value\n",
+            server.uri()
+        ))
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let value: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+
+    assert_eq!(value["ok"], false);
+    assert_eq!(value["error"]["code"], "auth_failed");
+    assert!(value["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("config init"));
+    assert!(!path.exists());
+}
+
+#[tokio::test]
+async fn command_warns_when_loaded_config_has_no_default_space() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v2/spaces"))
+        .and(query_param("limit", "25"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "results": [{"id": "space-eng", "key": "ENG", "name": "Engineering"}],
+            "_links": {}
+        })))
+        .mount(&server)
+        .await;
+
+    let dir = tempdir().unwrap();
+    let config = dir.path().join("config.toml");
+    fs::write(
+        &config,
+        format!(
+            r#"
+site_url = "{}"
+email = "user@example.com"
+api_token = "token-value"
+"#,
+            server.uri()
+        ),
+    )
+    .unwrap();
+
+    let output = Command::cargo_bin("confluence-cli")
+        .unwrap()
+        .arg("space")
+        .arg("list")
+        .env("CONFLUENCE_CLI_CONFIG", &config)
         .output()
         .unwrap();
 
@@ -181,26 +362,8 @@ fn config_init_accepts_piped_stdin_and_keeps_stdout_json_only() {
     let value: serde_json::Value = serde_json::from_str(&stdout).unwrap();
 
     assert_eq!(value["ok"], true);
-    assert_eq!(value["command"], "config.init");
-    assert!(!stdout.contains("token-value"));
-    assert!(stderr.contains("Confluence site URL"));
-    assert!(stderr.contains("Email"));
-    assert!(stderr.contains("API token"));
-    assert!(stderr.contains("Default space key"));
-
-    let loaded = load_config(&path).unwrap();
-    assert_eq!(loaded.site_url, "https://example.atlassian.net/wiki");
-    assert_eq!(loaded.email, "user@example.com");
-    assert_eq!(loaded.api_token, "token-value");
-    assert_eq!(loaded.default_space, "ENG");
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-
-        let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o777;
-        assert_eq!(mode, 0o600);
-    }
+    assert!(stderr.contains("Warning"));
+    assert!(stderr.contains("default_space"));
 }
 
 #[cfg(unix)]
@@ -214,7 +377,7 @@ fn newly_created_config_file_has_owner_only_permissions() {
         site_url: "https://example.atlassian.net/wiki".to_string(),
         email: "user@example.com".to_string(),
         api_token: "token-value".to_string(),
-        default_space: "ENG".to_string(),
+        default_space: Some("ENG".to_string()),
     };
 
     save_config(&path, &config).unwrap();
@@ -239,7 +402,7 @@ fn rewriting_existing_config_file_tightens_permissions_before_writing() {
         site_url: "https://example.atlassian.net/wiki/".to_string(),
         email: "new-user@example.com".to_string(),
         api_token: "new-token-value".to_string(),
-        default_space: "DOC".to_string(),
+        default_space: Some("DOC".to_string()),
     };
 
     save_config(&path, &config).unwrap();

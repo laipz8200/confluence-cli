@@ -40,3 +40,17 @@ pub fn print_json(value: &Value) -> Result<(), AppError> {
         })?;
     Ok(())
 }
+
+pub fn print_text(value: &str) -> Result<(), AppError> {
+    let mut stdout = io::stdout().lock();
+    stdout
+        .write_all(value.as_bytes())
+        .and_then(|_| stdout.write_all(b"\n"))
+        .map_err(|source| {
+            AppError::new(
+                ErrorCode::InternalError,
+                format!("Failed to write text output: {source}"),
+            )
+        })?;
+    Ok(())
+}

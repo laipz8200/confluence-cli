@@ -68,6 +68,10 @@ Create your config:
 confluence-cli config init
 ```
 
+The setup verifies the Confluence API credentials, lists accessible spaces by
+name, and lets you choose an optional default space. If no spaces are
+accessible, the config is still saved without a default space.
+
 List spaces:
 
 ```bash
@@ -109,6 +113,9 @@ CONFLUENCE_CLI_CONFIG=/path/to/config.toml confluence-cli space list
 ```
 
 The API token is stored in plaintext. On Unix platforms, `confluence-cli` writes the config file with `0600` permissions. Use a dedicated Atlassian API token and keep the config file out of source control.
+
+`default_space` is optional. When a config omits it, commands keep JSON output
+on stdout and print a warning to stderr when they load the config.
 
 ## Command Map
 

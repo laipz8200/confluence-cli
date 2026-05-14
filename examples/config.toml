@@ -1,4 +1,5 @@
 site_url = "https://example.atlassian.net/wiki"
 email = "user@example.com"
 api_token = "replace-with-atlassian-api-token"
-default_space = "ENG"
+# Optional. `config init` can leave this unset.
+# default_space = "ENG"

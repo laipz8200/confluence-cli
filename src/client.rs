@@ -99,6 +99,32 @@ impl ConfluenceClient {
         Ok(result.results)
     }
 
+    pub async fn list_all_spaces(&self) -> Result<Vec<Space>, AppError> {
+        let mut spaces = Vec::new();
+        let mut next_url = None;
+
+        loop {
+            let result: MultiResult<Space> = match next_url.take() {
+                Some(url) => {
+                    self.request_url_json(Method::GET, url, "/api/v2/spaces")
+                        .await?
+                }
+                None => {
+                    self.request_json(Method::GET, "/api/v2/spaces", &[("limit", "25")])
+                        .await?
+                }
+            };
+            spaces.extend(result.results);
+
+            let Some(next) = result.links.next else {
+                break;
+            };
+            next_url = Some(self.next_url(&next, "/api/v2/spaces")?);
+        }
+
+        Ok(spaces)
+    }
+
     pub async fn resolve_space_id(&self, key: &str) -> Result<String, AppError> {
         let result: MultiResult<Space> = self
             .request_json(
@@ -188,6 +214,25 @@ impl ConfluenceClient {
         self.parse_response(method, path, response).await
     }
 
+    async fn request_url_json<T>(
+        &self,
+        method: Method,
+        url: Url,
+        path_label: &str,
+    ) -> Result<T, AppError>
+    where
+        T: for<'de> Deserialize<'de>,
+    {
+        let response = self
+            .client
+            .request(method.clone(), url)
+            .send()
+            .await
+            .map_err(transport_error)?;
+
+        self.parse_response(method, path_label, response).await
+    }
+
     async fn send_json<T>(&self, method: Method, path: &str, payload: &T) -> Result<Value, AppError>
     where
         T: Serialize + ?Sized,
@@ -246,6 +291,25 @@ impl ConfluenceClient {
         Ok(url)
     }
 
+    fn next_url(&self, next: &str, fallback_path: &str) -> Result<Url, AppError> {
+        if let Ok(url) = Url::parse(next) {
+            return Ok(url);
+        }
+
+        if let Some(query) = next.strip_prefix('?') {
+            let mut url = self.endpoint(fallback_path)?;
+            url.set_query(Some(query));
+            return Ok(url);
+        }
+
+        self.base_url.join(next).map_err(|source| {
+            AppError::new(
+                ErrorCode::ConfluenceValidationFailed,
+                format!("Failed to parse Confluence pagination link: {source}"),
+            )
+        })
+    }
+
     fn status_error(
         &self,
         method: Method,
@@ -296,6 +360,13 @@ impl ConfluenceClient {
 #[derive(Debug, Deserialize)]
 struct MultiResult<T> {
     results: Vec<T>,
+    #[serde(rename = "_links", default)]
+    links: MultiResultLinks,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct MultiResultLinks {
+    next: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

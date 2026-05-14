@@ -11,20 +11,21 @@ pub struct Config {
     pub site_url: String,
     pub email: String,
     pub api_token: String,
-    pub default_space: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_space: Option<String>,
 }
 
 impl Config {
     pub fn validate(mut self) -> Result<Self, AppError> {
         self.site_url = self.site_url.trim_end_matches('/').to_string();
-        if self.site_url.is_empty()
-            || self.email.is_empty()
-            || self.api_token.is_empty()
-            || self.default_space.is_empty()
-        {
+        self.default_space = self
+            .default_space
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+        if self.site_url.is_empty() || self.email.is_empty() || self.api_token.is_empty() {
             return Err(AppError::new(
                 ErrorCode::ConfigInvalid,
-                "Config must include site_url, email, api_token, and default_space.",
+                "Config must include site_url, email, and api_token.",
             ));
         }
         let site_url = Url::parse(&self.site_url).map_err(|source| {
