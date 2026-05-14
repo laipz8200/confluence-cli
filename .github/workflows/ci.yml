@@ -10,6 +10,9 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  RUST_COMPONENTS: clippy
+  RUST_PROFILE: minimal
+  RUST_TOOLCHAIN: stable
 
 jobs:
   test:
@@ -20,8 +23,32 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Cache Rust toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.rustup/toolchains
+            ~/.rustup/update-hashes
+          key: rustup-${{ runner.os }}-${{ runner.arch }}-${{ env.RUST_TOOLCHAIN }}-${{ env.RUST_PROFILE }}-${{ env.RUST_COMPONENTS }}
+          restore-keys: |
+            rustup-${{ runner.os }}-${{ runner.arch }}-${{ env.RUST_TOOLCHAIN }}-${{ env.RUST_PROFILE }}-
+            rustup-${{ runner.os }}-${{ runner.arch }}-${{ env.RUST_TOOLCHAIN }}-
+
       - name: Install Rust
-        run: rustup toolchain install stable --profile minimal --component clippy --no-self-update
+        run: rustup toolchain install "$RUST_TOOLCHAIN" --profile "$RUST_PROFILE" --component "$RUST_COMPONENTS" --no-self-update
+
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/git/db
+            ~/.cargo/registry/cache
+            ~/.cargo/registry/index
+            target
+          key: cargo-${{ runner.os }}-${{ runner.arch }}-${{ env.RUST_TOOLCHAIN }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-${{ runner.arch }}-${{ env.RUST_TOOLCHAIN }}-
+            cargo-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Run Clippy
         run: cargo clippy --locked --all-targets --all-features -- -D warnings
