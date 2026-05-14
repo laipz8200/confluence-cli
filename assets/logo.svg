@@ -1,0 +1,22 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">confluence-cli logo</title>
+  <desc id="desc">An abstract Confluence document mark with a terminal prompt.</desc>
+  <rect width="256" height="256" rx="56" fill="#0F172A"/>
+  <path d="M74 87C89 66 116 61 138 75L158 88C169 95 183 92 190 82L198 70" stroke="url(#streamA)" stroke-width="24" stroke-linecap="round"/>
+  <path d="M58 153L66 141C78 124 101 119 118 130L142 146C158 156 179 153 190 138L202 121" stroke="url(#streamB)" stroke-width="24" stroke-linecap="round"/>
+  <path d="M76 98L61 122C50 140 55 164 73 175L88 184C108 196 134 190 146 170L156 154" stroke="#38BDF8" stroke-width="18" stroke-linecap="round" opacity="0.85"/>
+  <rect x="75" y="161" width="113" height="58" rx="16" fill="#111827" stroke="#E5E7EB" stroke-width="6"/>
+  <path d="M96 181L114 195L96 209" stroke="#A7F3D0" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M128 207H161" stroke="#F8FAFC" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="203" cy="61" r="13" fill="#F97316"/>
+  <defs>
+    <linearGradient id="streamA" x1="74" y1="87" x2="198" y2="70" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2DD4BF"/>
+      <stop offset="1" stop-color="#A3E635"/>
+    </linearGradient>
+    <linearGradient id="streamB" x1="58" y1="153" x2="202" y2="121" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#60A5FA"/>
+      <stop offset="1" stop-color="#2DD4BF"/>
+    </linearGradient>
+  </defs>
+</svg>
