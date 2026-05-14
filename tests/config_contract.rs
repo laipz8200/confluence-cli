@@ -3,7 +3,10 @@ use confluence_cli::auth::{basic_auth_header, redacted_token};
 use confluence_cli::command_context::CommandContext;
 use confluence_cli::config::{config_path, load_config, save_config, Config};
 use serde_json::json;
+use std::env;
+use std::ffi::OsString;
 use std::fs;
+use std::path::Path;
 use std::sync::{Mutex, MutexGuard};
 use tempfile::tempdir;
 use wiremock::matchers::{method, path, query_param};
@@ -40,6 +43,50 @@ impl Drop for EnvVarGuard {
             std::env::remove_var(self.key);
         }
     }
+}
+
+fn create_fake_npx_dir() -> tempfile::TempDir {
+    let dir = tempdir().unwrap();
+    let npx = dir.path().join(fake_npx_name());
+    fs::write(&npx, fake_npx_script()).unwrap();
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = fs::metadata(&npx).unwrap().permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&npx, permissions).unwrap();
+    }
+
+    dir
+}
+
+fn path_with_fake_npx(dir: &Path) -> OsString {
+    let mut paths = vec![dir.to_path_buf()];
+    if let Some(existing) = env::var_os("PATH") {
+        paths.extend(env::split_paths(&existing));
+    }
+    env::join_paths(paths).unwrap()
+}
+
+#[cfg(windows)]
+fn fake_npx_name() -> &'static str {
+    "npx.cmd"
+}
+
+#[cfg(not(windows))]
+fn fake_npx_name() -> &'static str {
+    "npx"
+}
+
+#[cfg(windows)]
+fn fake_npx_script() -> &'static str {
+    "@echo off\r\nexit /b 0\r\n"
+}
+
+#[cfg(not(windows))]
+fn fake_npx_script() -> &'static str {
+    "#!/bin/sh\nexit 0\n"
 }
 
 #[test]
@@ -196,12 +243,14 @@ async fn config_init_lists_spaces_and_selects_default_by_number() {
 
     let dir = tempdir().unwrap();
     let path = dir.path().join("config.toml");
+    let fake_npx = create_fake_npx_dir();
 
     let output = Command::cargo_bin("confluence-cli")
         .unwrap()
         .arg("config")
         .arg("init")
         .env("CONFLUENCE_CLI_CONFIG", &path)
+        .env("PATH", path_with_fake_npx(fake_npx.path()))
         .write_stdin(format!(
             "{}/\nuser@example.com\ntoken-value\n1\nn\n",
             server.uri()
@@ -255,12 +304,14 @@ async fn config_init_allows_no_spaces_without_default_space() {
 
     let dir = tempdir().unwrap();
     let path = dir.path().join("config.toml");
+    let fake_npx = create_fake_npx_dir();
 
     let output = Command::cargo_bin("confluence-cli")
         .unwrap()
         .arg("config")
         .arg("init")
         .env("CONFLUENCE_CLI_CONFIG", &path)
+        .env("PATH", path_with_fake_npx(fake_npx.path()))
         .write_stdin(format!(
             "{}/\nuser@example.com\ntoken-value\nn\n",
             server.uri()
@@ -280,6 +331,51 @@ async fn config_init_allows_no_spaces_without_default_space() {
     assert!(stderr.contains("No accessible spaces"));
     assert!(stderr.contains("Install the companion Agent Skills package now? [Y/n]"));
     assert!(!written.contains("default_space"));
+}
+
+#[tokio::test]
+async fn config_init_skips_agent_skills_when_npx_is_unavailable() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v2/spaces"))
+        .and(query_param("limit", "25"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "results": [{"id": "space-eng", "key": "ENG", "name": "Engineering"}],
+            "_links": {}
+        })))
+        .mount(&server)
+        .await;
+
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    let empty_path_dir = tempdir().unwrap();
+
+    let output = Command::cargo_bin("confluence-cli")
+        .unwrap()
+        .arg("config")
+        .arg("init")
+        .env("CONFLUENCE_CLI_CONFIG", &path)
+        .env("PATH", empty_path_dir.path())
+        .write_stdin(format!(
+            "{}/\nuser@example.com\ntoken-value\n1\n",
+            server.uri()
+        ))
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stdout.contains("setup is complete"));
+    assert!(stdout.contains("Agent Skills package skipped"));
+    assert!(stdout.contains("npx"));
+    assert!(stderr.contains("Agent Skills package skipped"));
+    assert!(stderr.contains("npx"));
+    assert!(!stderr.contains("Install the companion Agent Skills package now? [Y/n]"));
+
+    let loaded = load_config(&path).unwrap();
+    assert_eq!(loaded.default_space.as_deref(), Some("ENG"));
 }
 
 #[tokio::test]
