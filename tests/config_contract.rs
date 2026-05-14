@@ -203,7 +203,7 @@ async fn config_init_lists_spaces_and_selects_default_by_number() {
         .arg("init")
         .env("CONFLUENCE_CLI_CONFIG", &path)
         .write_stdin(format!(
-            "{}/\nuser@example.com\ntoken-value\n1\n",
+            "{}/\nuser@example.com\ntoken-value\n1\nn\n",
             server.uri()
         ))
         .output()
@@ -223,6 +223,7 @@ async fn config_init_lists_spaces_and_selects_default_by_number() {
     assert!(stderr.contains("API token"));
     assert!(stderr.contains("Engineering"));
     assert!(stderr.contains("Documentation"));
+    assert!(stderr.contains("Install the companion Agent Skills package now? [Y/n]"));
 
     let loaded = load_config(&path).unwrap();
     assert_eq!(loaded.site_url, server.uri());
@@ -261,7 +262,7 @@ async fn config_init_allows_no_spaces_without_default_space() {
         .arg("init")
         .env("CONFLUENCE_CLI_CONFIG", &path)
         .write_stdin(format!(
-            "{}/\nuser@example.com\ntoken-value\n",
+            "{}/\nuser@example.com\ntoken-value\nn\n",
             server.uri()
         ))
         .output()
@@ -277,6 +278,7 @@ async fn config_init_allows_no_spaces_without_default_space() {
     assert!(stdout.contains("Congratulations"));
     assert!(stdout.contains(path.to_str().unwrap()));
     assert!(stderr.contains("No accessible spaces"));
+    assert!(stderr.contains("Install the companion Agent Skills package now? [Y/n]"));
     assert!(!written.contains("default_space"));
 }
 

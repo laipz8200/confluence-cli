@@ -46,16 +46,12 @@ cargo build --release
 
 ## Agent Skills Package
 
-If you are using an Agent, install the companion Skills package after installing the CLI binary:
+If you are using an Agent, `confluence-cli config init` asks whether to install the companion Skills package after saving your config. Press Enter to install it, or enter `n` to skip.
 
-```text
-skills/confluence-cli
-```
-
-Install it with the Skills installer used by your Agent environment:
+To install or reinstall it manually:
 
 ```bash
-npx skills install ./skills/confluence-cli
+npx skills add laipz8200/confluence-cli --skill confluence-cli
 ```
 
 The skill instructs Agents to use dry-runs first, summarize planned writes, and ask for explicit approval before adding `--execute`.
