@@ -98,7 +98,7 @@ package="$extract_dir/confluence-cli-1.2.3-{target}"
 mkdir -p "$package"
 cat > "$package/confluence-cli" <<'BIN'
 #!/bin/sh
-printf 'confluence-cli 1.2.3\n'
+printf '%s\n' "$*" >> "$MOCK_LOG_DIR/confluence-cli.log"
 BIN
 chmod 755 "$package/confluence-cli"
 "#,
@@ -147,6 +147,12 @@ fn install_script_downloads_latest_release_asset_for_target() {
         "https://github.example.test/laipz8200/confluence-cli/releases/download/v1.2.3/confluence-cli-1.2.3-x86_64-unknown-linux-gnu.tar.gz"
     );
     assert!(install_dir.join("confluence-cli").is_file());
+    assert_eq!(
+        fs::read_to_string(temp.path().join("confluence-cli.log"))
+            .unwrap()
+            .trim(),
+        "config init"
+    );
 }
 
 #[test]
