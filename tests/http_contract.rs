@@ -12,7 +12,7 @@ fn config(base_url: &str) -> Config {
         site_url: base_url.to_string(),
         email: "user@example.com".to_string(),
         api_token: "token-value".to_string(),
-        default_space: "ENG".to_string(),
+        default_space: Some("ENG".to_string()),
     }
 }
 
@@ -35,6 +35,36 @@ async fn list_spaces_calls_v2_spaces_with_auth() {
 
     assert_eq!(spaces[0].id, "987");
     assert_eq!(spaces[0].key, "ENG");
+}
+
+#[tokio::test]
+async fn list_all_spaces_follows_next_links() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v2/spaces"))
+        .and(query_param("limit", "25"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "results": [{"id": "space-eng", "key": "ENG", "name": "Engineering"}],
+            "_links": {"next": "/api/v2/spaces?cursor=next-page"}
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/api/v2/spaces"))
+        .and(query_param("cursor", "next-page"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "results": [{"id": "space-docs", "key": "DOCS", "name": "Documentation"}],
+            "_links": {}
+        })))
+        .mount(&server)
+        .await;
+
+    let client = ConfluenceClient::new(config(&server.uri())).unwrap();
+    let spaces = client.list_all_spaces().await.unwrap();
+
+    assert_eq!(spaces.len(), 2);
+    assert_eq!(spaces[0].key, "ENG");
+    assert_eq!(spaces[1].key, "DOCS");
 }
 
 #[tokio::test]
