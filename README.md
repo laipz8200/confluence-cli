@@ -19,6 +19,10 @@
   <img alt="Agent friendly" src="https://img.shields.io/badge/agent-friendly-2563eb?style=flat-square">
 </p>
 
+<p align="center">
+  English | <a href="README.zh-CN.md">简体中文</a>
+</p>
+
 ## What It Does
 
 `confluence-cli` is a small, focused CLI for Confluence Cloud. It is designed for humans and Agents that need predictable Confluence reads and safer page writes without wrapping the entire REST API.
