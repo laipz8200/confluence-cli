@@ -2,9 +2,10 @@
 
 use std::ffi::OsString;
 use std::fs;
+use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
 use tempfile::tempdir;
 
 fn install_script() -> PathBuf {
@@ -118,6 +119,7 @@ fn write_mock_npx(fake_bin: &Path) {
 set -eu
 
 printf '%s\n' "$*" >> "$MOCK_LOG_DIR/npx.log"
+cat > "$MOCK_LOG_DIR/npx.stdin"
 "#,
     );
 }
@@ -146,6 +148,29 @@ fn run_uninstall_script(temp: &Path, fake_bin: &Path, install_dir: &Path) -> Out
         .env("CONFLUENCE_CLI_INSTALL_DIR", install_dir)
         .output()
         .unwrap()
+}
+
+fn run_uninstall_script_from_stdin(temp: &Path, fake_bin: &Path, install_dir: &Path) -> Output {
+    let mut child = Command::new("sh")
+        .arg("-s")
+        .arg("--")
+        .arg("--uninstall")
+        .env("PATH", path_with_fake_bin(fake_bin))
+        .env("HOME", temp)
+        .env("MOCK_LOG_DIR", temp)
+        .env("CONFLUENCE_CLI_INSTALL_DIR", install_dir)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(&fs::read(install_script()).unwrap())
+        .unwrap();
+    child.wait_with_output().unwrap()
 }
 
 #[test]
@@ -281,4 +306,25 @@ fn install_script_uninstalls_binary_and_agent_skill() {
         "skills remove confluence-cli --yes"
     );
     assert!(!temp.path().join("download.url").exists());
+}
+
+#[test]
+fn uninstall_script_does_not_pass_piped_script_body_to_npx() {
+    let temp = tempdir().unwrap();
+    let fake_bin = temp.path().join("bin");
+    let install_dir = temp.path().join("install");
+    fs::create_dir(&fake_bin).unwrap();
+    fs::create_dir(&install_dir).unwrap();
+    fs::write(install_dir.join("confluence-cli"), "installed").unwrap();
+    write_mock_npx(&fake_bin);
+
+    let output = run_uninstall_script_from_stdin(temp.path(), &fake_bin, &install_dir);
+
+    assert!(
+        output.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(fs::read_to_string(temp.path().join("npx.stdin")).unwrap(), "");
 }
