@@ -2,6 +2,7 @@
 set -eu
 
 BIN_NAME="confluence-cli"
+SKILL_NAME="confluence-cli"
 REPO="${CONFLUENCE_CLI_REPO:-laipz8200/confluence-cli}"
 GITHUB_BASE_URL="${CONFLUENCE_CLI_GITHUB_BASE_URL:-https://github.com}"
 GITHUB_API_URL="${CONFLUENCE_CLI_GITHUB_API_URL:-https://api.github.com}"
@@ -11,8 +12,16 @@ GITHUB_BASE_URL="${GITHUB_BASE_URL%/}"
 GITHUB_API_URL="${GITHUB_API_URL%/}"
 
 fail() {
-  printf 'confluence-cli install: %s\n' "$*" >&2
+  printf 'confluence-cli install.sh: %s\n' "$*" >&2
   exit 1
+}
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  install.sh
+  install.sh --uninstall
+USAGE
 }
 
 need_command() {
@@ -69,6 +78,53 @@ default_install_dir() {
   [ -n "${HOME:-}" ] || fail "HOME is not set. Set CONFLUENCE_CLI_INSTALL_DIR to choose an install directory."
   printf '%s/.local/bin\n' "$HOME"
 }
+
+uninstall_cli() {
+  install_dir=$(default_install_dir)
+  binary_path="$install_dir/$BIN_NAME"
+
+  if [ -e "$binary_path" ]; then
+    rm -f "$binary_path" || fail "Failed to remove $binary_path."
+    printf 'Removed %s from %s\n' "$BIN_NAME" "$binary_path"
+  else
+    printf '%s was not installed at %s\n' "$BIN_NAME" "$binary_path"
+  fi
+
+  if command -v npx >/dev/null 2>&1; then
+    printf 'Removing Agent Skills package\n'
+    npx skills remove "$SKILL_NAME" --yes \
+      || fail "Failed to remove Agent Skills package."
+  else
+    printf 'Note: npx is not on PATH; skipping Agent Skills package removal.\n'
+  fi
+
+  printf 'Note: configuration files were not removed.\n'
+}
+
+action=install
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --uninstall | uninstall)
+      action=uninstall
+      ;;
+    --help | -h)
+      usage
+      exit 0
+      ;;
+    --)
+      ;;
+    *)
+      fail "Unknown argument: $1"
+      ;;
+  esac
+  shift
+done
+
+if [ "$action" = "uninstall" ]; then
+  need_command rm
+  uninstall_cli
+  exit 0
+fi
 
 need_command curl
 need_command head

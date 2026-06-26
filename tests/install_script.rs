@@ -111,6 +111,17 @@ fn write_mock_tar(fake_bin: &Path) {
     write_mock_tar_for_target(fake_bin, "x86_64-unknown-linux-gnu");
 }
 
+fn write_mock_npx(fake_bin: &Path) {
+    write_executable(
+        &fake_bin.join("npx"),
+        r#"#!/bin/sh
+set -eu
+
+printf '%s\n' "$*" >> "$MOCK_LOG_DIR/npx.log"
+"#,
+    );
+}
+
 fn run_install_script(temp: &Path, fake_bin: &Path, install_dir: &Path) -> Output {
     Command::new("sh")
         .arg(install_script())
@@ -121,6 +132,18 @@ fn run_install_script(temp: &Path, fake_bin: &Path, install_dir: &Path) -> Outpu
         .env("CONFLUENCE_CLI_GITHUB_BASE_URL", "https://github.example.test")
         .env("CONFLUENCE_CLI_INSTALL_DIR", install_dir)
         .env("CONFLUENCE_CLI_TARGET", "x86_64-unknown-linux-gnu")
+        .output()
+        .unwrap()
+}
+
+fn run_uninstall_script(temp: &Path, fake_bin: &Path, install_dir: &Path) -> Output {
+    Command::new("sh")
+        .arg(install_script())
+        .arg("--uninstall")
+        .env("PATH", path_with_fake_bin(fake_bin))
+        .env("HOME", temp)
+        .env("MOCK_LOG_DIR", temp)
+        .env("CONFLUENCE_CLI_INSTALL_DIR", install_dir)
         .output()
         .unwrap()
 }
@@ -228,4 +251,34 @@ esac
         "https://github.example.test/laipz8200/confluence-cli/releases/download/v1.2.3/confluence-cli-1.2.3-aarch64-unknown-linux-gnu.tar.gz"
     );
     assert!(install_dir.join("confluence-cli").is_file());
+}
+
+#[test]
+fn install_script_uninstalls_binary_and_agent_skill() {
+    let temp = tempdir().unwrap();
+    let fake_bin = temp.path().join("bin");
+    let install_dir = temp.path().join("install");
+    fs::create_dir(&fake_bin).unwrap();
+    fs::create_dir(&install_dir).unwrap();
+    fs::write(install_dir.join("confluence-cli"), "installed").unwrap();
+    write_mock_curl(&fake_bin);
+    write_mock_tar(&fake_bin);
+    write_mock_npx(&fake_bin);
+
+    let output = run_uninstall_script(temp.path(), &fake_bin, &install_dir);
+
+    assert!(
+        output.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!install_dir.join("confluence-cli").exists());
+    assert_eq!(
+        fs::read_to_string(temp.path().join("npx.log"))
+            .unwrap()
+            .trim(),
+        "skills remove confluence-cli --yes"
+    );
+    assert!(!temp.path().join("download.url").exists());
 }
