@@ -50,6 +50,14 @@ curl -fsSL https://raw.githubusercontent.com/laipz8200/confluence-cli/main/insta
 curl -fsSL https://raw.githubusercontent.com/laipz8200/confluence-cli/main/install.sh | CONFLUENCE_CLI_VERSION=0.1.0 sh
 ```
 
+卸载 CLI 二进制文件和配套 Skills 包：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/laipz8200/confluence-cli/main/install.sh | sh -s -- --uninstall
+```
+
+如果安装到了自定义目录，卸载时同样设置 `CONFLUENCE_CLI_INSTALL_DIR`。已保存的配置文件不会被删除。
+
 需要本地构建时，可以从本地源码目录安装：
 
 ```bash

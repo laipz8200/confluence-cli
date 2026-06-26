@@ -51,6 +51,15 @@ curl -fsSL https://raw.githubusercontent.com/laipz8200/confluence-cli/main/insta
 curl -fsSL https://raw.githubusercontent.com/laipz8200/confluence-cli/main/install.sh | CONFLUENCE_CLI_VERSION=0.1.0 sh
 ```
 
+Uninstall the CLI binary and companion Skills package:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/laipz8200/confluence-cli/main/install.sh | sh -s -- --uninstall
+```
+
+Set `CONFLUENCE_CLI_INSTALL_DIR` when uninstalling from a custom install
+directory. Saved config files are not removed.
+
 Install from a source checkout when you need a local build:
 
 ```bash
