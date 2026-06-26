@@ -92,7 +92,7 @@ uninstall_cli() {
 
   if command -v npx >/dev/null 2>&1; then
     printf 'Removing Agent Skills package\n'
-    npx skills remove "$SKILL_NAME" --yes \
+    npx skills remove "$SKILL_NAME" --yes </dev/null \
       || fail "Failed to remove Agent Skills package."
   else
     printf 'Note: npx is not on PATH; skipping Agent Skills package removal.\n'
