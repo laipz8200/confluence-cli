@@ -103,9 +103,10 @@ pub async fn dispatch(command: Commands) -> DispatchResult {
                 .map_err(to_failure(space_list::COMMAND))
         }
         Commands::Search(args) => {
+            let limit = args.limit.clone();
             let cql = args.cql().map_err(to_failure(search::COMMAND))?;
             let ctx = load_context(search::COMMAND)?;
-            search::run(cql, ctx)
+            search::run(cql, limit, ctx)
                 .await
                 .map_err(to_failure(search::COMMAND))
         }
