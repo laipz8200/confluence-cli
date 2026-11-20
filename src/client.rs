@@ -144,11 +144,11 @@ impl ConfluenceClient {
             })
     }
 
-    pub async fn search(&self, cql: &str) -> Result<Value, AppError> {
+    pub async fn search(&self, cql: &str, limit: &str) -> Result<Value, AppError> {
         self.request_json(
             Method::GET,
             "/rest/api/search",
-            &[("cql", cql), ("limit", "25")],
+            &[("cql", cql), ("limit", limit)],
         )
         .await
     }

@@ -101,7 +101,26 @@ async fn search_uses_v1_cql_endpoint() {
         .await;
 
     let client = ConfluenceClient::new(config(&server.uri())).unwrap();
-    let result = client.search("text ~ \"deploy\"").await.unwrap();
+    let result = client.search("text ~ \"deploy\"", "25").await.unwrap();
+
+    assert_eq!(result["results"][0]["content"]["id"], "123");
+}
+
+#[tokio::test]
+async fn search_sends_custom_limit() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/rest/api/search"))
+        .and(query_param("cql", "text ~ \"deploy\""))
+        .and(query_param("limit", "100"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "results": [{"content": {"id": "123", "title": "Deploy Guide"}}]
+        })))
+        .mount(&server)
+        .await;
+
+    let client = ConfluenceClient::new(config(&server.uri())).unwrap();
+    let result = client.search("text ~ \"deploy\"", "100").await.unwrap();
 
     assert_eq!(result["results"][0]["content"]["id"], "123");
 }

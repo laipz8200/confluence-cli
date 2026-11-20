@@ -12,6 +12,8 @@ pub struct SearchArgs {
     query: Option<String>,
     #[arg(long)]
     cql: Option<String>,
+    #[arg(long, default_value = "25")]
+    pub limit: String,
 }
 
 impl SearchArgs {
@@ -27,8 +29,8 @@ impl SearchArgs {
     }
 }
 
-pub async fn run(cql: String, ctx: CommandContext) -> CommandResult {
-    let result = ctx.client().search(&cql).await?;
+pub async fn run(cql: String, limit: String, ctx: CommandContext) -> CommandResult {
+    let result = ctx.client().search(&cql, &limit).await?;
 
     Ok(CommandOutput::new(
         COMMAND,
